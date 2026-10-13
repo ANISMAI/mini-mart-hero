@@ -1,0 +1,27 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #1f324c;
+  font-family: "Nunito", "Segoe UI", system-ui, sans-serif;
+  touch-action: none;
+}
+
+#game-container,
+#app {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+#ui-root {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
