@@ -31,6 +31,13 @@ export default class HUD {
   enabled = true;
 
   private levelPill: HTMLElement;
+  private alertPill: HTMLElement;
+
+  /** Small status pill (e.g. power problems); null hides it. */
+  setAlert(text: string | null): void {
+    this.alertPill.textContent = text ?? "";
+    this.alertPill.classList.toggle("hidden", !text);
+  }
 
   setLevel(level: number): void {
     this.levelPill.textContent = `⭐ Lv ${level}`;
@@ -46,7 +53,8 @@ export default class HUD {
     pause.addEventListener("click", () => cb.onPause());
     const profile = el("div", "hud-profile");
     this.levelPill = el("span", "hud-pill", "⭐ Lv 1");
-    profile.append(el("span", "hud-avatar", "🧑‍💼"), this.levelPill, el("span", "hud-pill", "🪙 0"));
+    this.alertPill = el("span", "hud-pill hud-alert hidden");
+    profile.append(el("span", "hud-avatar", "🧑‍💼"), this.levelPill, el("span", "hud-pill", "🪙 0"), this.alertPill);
     stats.append(pause, profile);
 
     this.miniMapMount = el("button", "hud-minimap");
@@ -169,13 +177,13 @@ export default class HUD {
     }
   }
 
-  showToast(text: string): void {
+  showToast(text: string, ms = 1800): void {
     this.toast.textContent = text;
     this.toast.classList.remove("show");
     void this.toast.offsetWidth;
     this.toast.classList.add("show");
     window.clearTimeout(this.toastTimer);
-    this.toastTimer = window.setTimeout(() => this.toast.classList.remove("show"), 1800);
+    this.toastTimer = window.setTimeout(() => this.toast.classList.remove("show"), ms);
   }
 
   /** Locks the controls (modal open): releases the joystick so input can't leak underneath. */

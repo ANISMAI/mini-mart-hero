@@ -96,6 +96,33 @@ organizer icon and as a standing cut-out on the shelves; otherwise the placehold
 (`world/ProductModels.ts`, one shape per item with a printed label) is shown. Missing pictures
 just log a 404 in the console. The `iconKey` of every item is in `src/data/catalog.ts`.
 
+## Phase 1.5: store utilities
+
+An add-on to the Phase 1 store (no cashier or customer features). Everything reads one
+authoritative service, **`src/game/Utilities.ts`** (`UtilityService`), saved under its own key
+`mini-market-hero-utilities-v1` (the Phase 1 save is untouched; invalid data falls back to defaults).
+
+| Piece | Where | How |
+|---|---|---|
+| Bilik Utiliti | east end of the back corridor (door on its west wall) | on both maps, Go Here works |
+| Light zones | Kedai Utama, Peti Sejuk, Stor, Pejabat, Bilik Rehat, Tandas, Surau, Bilik Utiliti | wall switch beside each door: Interact toggles instantly (click + toast) |
+| Manager light panel | office desk | every zone ON/OFF, plus all on / all off |
+| Aircond | 3 wall units in the shop, controller on the wall beside the till | ON/OFF, 22 to 28 °C, saved |
+| Electrical cabinet | closed box in the utility room | status panel only, **Panggil Juruteknik** |
+
+Lighting is cheap on purpose: no extra dynamic lights. Each zone has glowing tube fixtures (one
+instanced mesh) and a dark see-through shade above the walls; standing in a dark zone also dims
+the scene lights. Zone data (areas, fixtures, switch spots) is in `src/data/utilities.ts`, the 3D
+side in `src/world/UtilityVisuals.ts`, panels in `src/ui/Overlays.ts`.
+
+**Simulated power trip (fictional):** about 5 minutes into play, then every 10 to 15 minutes,
+a short warning is followed by an outage in 2 or 3 zones (lights; the AC too if the main shop is
+hit). The player reads the cabinet panel and calls a technician; after about 20 s power returns
+and every switch goes back to what the player had set. Refrigerator cooling is on a separate
+circuit and is never affected. Events never stack and the technician can be called once. Add
+`?dev` to the URL to get developer buttons on the cabinet panel: trigger a test event, resolve
+now, **Reset Demo Event**.
+
 ## Replacing models and textures
 
 Everything is built from simple primitives in `world/StoreBuilder.ts` (one function per piece:
@@ -131,6 +158,17 @@ is the optional Nunito font (Google Fonts); remove it in `index.html` for fully 
 
 Unticked items need a manual pass on a device (automated browser testing was not available in
 this environment at the time of writing).
+
+### Phase 1.5 checks
+
+- [x] Utility service logic (Node script): switch affects only its zone; AC on/off and 22 to 28 °C
+      clamp; no stacking events; technician only during an outage and only once; outage cuts the
+      chosen zones and the AC but never the fridge zone; switch settings survive the outage;
+      reload mid-repair keeps the state; corrupt save falls back to defaults; Reset Demo Event.
+- [x] Every room spawn and every interact point (including the new switches, AC controller and
+      cabinet) is clear of collision boxes.
+- [ ] On a device: switches / panels in portrait, shade and fixture visuals, AC airflow, outage
+      flow end to end, reload.
 
 ## Out of scope (later phases)
 

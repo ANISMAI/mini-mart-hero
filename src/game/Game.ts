@@ -10,6 +10,10 @@ import FullMap from "../ui/FullMap";
 import Overlays from "../ui/Overlays";
 import { loadSave, writeSave, type SaveData } from "./LocalSave";
 import { getRoom, roomAt, type RoomId } from "../data/rooms";
+import UtilityService from "./Utilities";
+import UtilityVisuals from "../world/UtilityVisuals";
+import { getZone, zoneAt } from "../data/utilities";
+import { buildExterior, type Exterior } from "../world/Exterior";
 
 /**
  * StoreScene + game loop. The render loop (Three.js) and the DOM task overlays are separate;
@@ -75,6 +79,15 @@ export default class Game {
   private fpsTime = 0;
   private fpsFrames = 0;
   private pixelRatio: number;
+  private utils = new UtilityService();
+  private utilVisuals: UtilityVisuals;
+  private exterior: Exterior;
+  /** Scene lights and their full intensities (dimmed while the player's zone is dark). */
+  private lights: { light: THREE.Light; full: number }[] = [];
+  private dim = 1;
+  private refreshTimer = 0;
+  private audio: AudioContext | null = null;
+  private readonly dev = new URLSearchParams(location.search).has("dev");
 
   constructor(container: HTMLElement, uiRoot: HTMLElement) {
     // renderer: capped pixel ratio, no real-time shadows, simple lights (cheap on low-end Android)
@@ -85,10 +98,18 @@ export default class Game {
     container.appendChild(this.renderer.domElement);
 
     this.scene.background = new THREE.Color(0xcfe8f5);
-    this.scene.add(new THREE.HemisphereLight(0xffffff, 0xd6c8b4, 1.9));
-    const sun = new THREE.DirectionalLight(0xffffff, 1.1);
+    // bright, even shop lighting: sky/ground fill, soft ambient so walls facing away from the
+    // sun don't go grey, a warm key light and a cooler fill from the opposite side
+    const hemi = new THREE.HemisphereLight(0xffffff, 0xf3e6d3, 1.8);
+    const ambient = new THREE.AmbientLight(0xffffff, 0.45);
+    this.scene.add(hemi, ambient);
+    const fill = new THREE.DirectionalLight(0xeaf4ff, 0.55);
+    fill.position.set(-10, 12, -8);
+    this.scene.add(fill);
+    const sun = new THREE.DirectionalLight(0xfff6e8, 1.1);
     sun.position.set(8, 14, 10);
     this.scene.add(sun);
+    this.lights = [hemi, ambient, fill, sun].map((light) => ({ light, full: light.intensity }));
 
     // career level decides which catalog products are on the shelves; ?lv=8 previews another level
     const lv = Number(new URLSearchParams(location.search).get("lv"));
@@ -96,19 +117,25 @@ export default class Game {
     this.level = Number.isInteger(lv) && lv >= 1 && lv <= 99 ? lv : this.careerLevel;
     this.store = buildStore(this.level);
     this.scene.add(this.store.group);
+    this.utilVisuals = new UtilityVisuals(this.store.group, this.utils);
+    // the street outside; its facade fades like the walls
+    this.exterior = buildExterior();
+    this.scene.add(this.exterior.group);
+    this.store.occluders.push(...this.exterior.occluders);
+    this.scene.fog = new THREE.Fog(0xcfe8f5, 35, 78); // fades out before the camera far plane (80)
 
     this.player = new PlayerController(this.store.collisions);
     this.scene.add(this.player.avatar.root);
     this.cam = new ThirdPersonCamera(1, this.store.occluders);
 
     this.customers = [
-      new AmbientCustomer(CUSTOMER_LOOKS[0], [
+      new AmbientCustomer(CUSTOMER_LOOKS[0], this.store.collisions, [
         [13, 20.5],
         [13, 8.4],
         [16.8, 8.4],
         [16.8, 20.5],
       ]),
-      new AmbientCustomer(CUSTOMER_LOOKS[1], [
+      new AmbientCustomer(CUSTOMER_LOOKS[1], this.store.collisions, [
         [3.8, 20],
         [3.8, 10.6],
         [8.5, 10.6],
@@ -129,6 +156,13 @@ export default class Game {
     this.fullMap = new FullMap(uiRoot, (id) => this.travelToRoom(id), () => this.exitTaskMode());
     this.overlays = new Overlays(uiRoot);
     this.hud.setLevel(this.level);
+    // utilities: notices as toasts, live panels and the HUD status pill follow the service
+    this.utils.onNotice = (text) => this.hud.showToast(text, 3600);
+    this.utils.subscribe(() => {
+      this.overlays.refresh();
+      this.updateAlert();
+    });
+    this.updateAlert();
     this.fade = document.createElement("div");
     this.fade.className = "fade show";
     uiRoot.appendChild(this.fade);
@@ -238,11 +272,46 @@ export default class Game {
   private interact(): void {
     if (this.taskMode || !this.near) return;
     const it = this.near;
+    if (it.kind === "switch" && it.zone) {
+      // wall switch: instant, no panel
+      const on = this.utils.toggleZone(it.zone);
+      this.click();
+      const powered = this.utils.zones.get(it.zone)!.powered;
+      this.hud.showToast(`💡 ${getZone(it.zone).label}: ${on ? "ON" : "OFF"}${on && !powered ? " (tiada bekalan)" : ""}`);
+      return;
+    }
     this.enterTaskMode();
     const done = () => this.exitTaskMode();
     if (it.kind === "cashier") this.overlays.cashier(done);
     else if (it.kind === "organizer") this.overlays.organizer(it.shelf!, this.level, done);
+    else if (it.kind === "aircon") this.overlays.aircon(this.utils, done);
+    else if (it.kind === "lights") this.overlays.lights(this.utils, done);
+    else if (it.kind === "electrical") this.overlays.electrical(this.utils, this.dev, done);
     else this.overlays.info(it.title ?? it.label, it.icon, it.text ?? "", done);
+  }
+
+  /** HUD pill while the power event is active. */
+  private updateAlert(): void {
+    const s = this.utils.event.state;
+    this.hud.setAlert(s === "warning" ? "⚠️ Elektrik" : s === "outage" ? "⚡ Gangguan" : s === "technician" ? "🔧 Pembaikan" : null);
+  }
+
+  /** Short switch click (Web Audio, no asset). */
+  private click(): void {
+    try {
+      this.audio ??= new AudioContext();
+      const t = this.audio.currentTime;
+      const osc = this.audio.createOscillator();
+      const gain = this.audio.createGain();
+      osc.frequency.value = 1800;
+      gain.gain.setValueAtTime(0.08, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+      osc.connect(gain).connect(this.audio.destination);
+      osc.start(t);
+      osc.stop(t + 0.06);
+    } catch {
+      // no audio available
+    }
   }
 
   // ---------- loop ----------
@@ -262,6 +331,7 @@ export default class Game {
     if (!this.taskMode) this.player.update(dt, this.cam);
     else this.player.avatar.animate(dt, 0);
     for (const c of this.customers) c.update(dt);
+    this.exterior.tick(dt);
     this.cam.update(this.player.position, dt);
 
     const p = this.player.position;
@@ -294,8 +364,15 @@ export default class Game {
       d.pivot.rotation.y = d.open * d.openAngle;
     }
 
+    // entrance: automatic sliding doors open for the player or a customer nearby
+    const e = this.store.entrance;
+    const someoneNear = [p, ...this.customers.map((c) => c.avatar.root.position)].some((q) => Math.hypot(q.x - e.x, q.z - e.z) < 2.8);
+    e.open += ((someoneNear ? 1 : 0) - e.open) * Math.min(1, dt * 4);
+    for (const l of e.leaves) l.leaf.position.x = l.closedX + l.dir * e.open * e.travel;
+
     // room label when entering a new zone
     const r = roomAt(p.x, p.z);
+    this.store.mirror.visible = r?.id === "restroom"; // live mirror only while inside
     if (r && r.id !== this.room) {
       this.room = r.id;
       this.visited.add(r.id);
@@ -314,6 +391,20 @@ export default class Game {
     }
     this.near = best;
     this.hud.setInteract(this.taskMode ? null : best);
+
+    // utilities: event timers, visuals, and a dimmer world while standing in a dark zone
+    this.utils.update();
+    const zone = zoneAt(p.x, p.z);
+    this.utilVisuals.playerZone = zone;
+    this.utilVisuals.tick(dt);
+    const dimGoal = zone && !this.utils.lit(zone) ? 0.42 : 1;
+    this.dim += (dimGoal - this.dim) * Math.min(1, dt * 5);
+    for (const l of this.lights) l.light.intensity = l.full * this.dim;
+    this.refreshTimer += dt;
+    if (this.refreshTimer > 0.5) {
+      this.refreshTimer = 0;
+      if (this.utils.event.state === "technician") this.overlays.refresh(); // countdown
+    }
 
     this.miniMap.draw(p.x, p.z, this.player.facing, this.room);
     this.renderer.render(this.scene, this.cam.camera);

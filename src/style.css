@@ -606,3 +606,157 @@ button {
     height: 60%;
   }
 }
+
+/* ---------- Phase 1.5 utilities ---------- */
+
+.hud-alert {
+  border-color: #ffb020;
+  background: #e8333f;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.util-status {
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.util-status.ok {
+  background: #dff6ec;
+  color: #1d7a55;
+}
+
+.util-status.off {
+  background: #eceff3;
+  color: var(--ink-soft);
+}
+
+.util-status.warn {
+  background: #fff1cc;
+  color: #9a6400;
+}
+
+.util-status.bad {
+  background: #ffe0e0;
+  color: #b3202c;
+}
+
+.util-status.info {
+  background: #e0eeff;
+  color: #1f5fae;
+}
+
+.ac-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.ac-temp {
+  min-width: 110px;
+  font-size: 44px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  flex: 1;
+  min-width: 56px;
+  min-height: 44px;
+  border: 2px solid #d5dde8;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 800;
+}
+
+.chip.on {
+  border-color: var(--green-dark);
+  background: var(--green);
+  color: #fff;
+}
+
+.util-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.util-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 4px 6px 4px 12px;
+  border: 2px solid #e3e8ef;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.util-row.cut {
+  border-color: #f3b4b4;
+  background: #fff4f4;
+}
+
+.util-row.risk {
+  border-color: #f5d27a;
+  background: #fffaeb;
+}
+
+.util-name {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.util-pill {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #eef1f5;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.switch-btn {
+  width: 64px;
+  min-height: 44px;
+  border: 2px solid #c5ccd6;
+  border-radius: 999px;
+  background: #e3e8ee;
+  color: #6b7686;
+  font: inherit;
+  font-weight: 900;
+}
+
+.switch-btn.on {
+  border-color: #e0a800;
+  background: #ffd84d;
+  color: #5a4300;
+}
+
+.dev-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 2px dashed #c5ccd6;
+  border-radius: 12px;
+}

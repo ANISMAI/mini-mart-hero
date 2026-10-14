@@ -37,7 +37,9 @@ export type RoomId =
   | "rest"
   | "surau"
   | "restroom"
-  | "chiller";
+  | "chiller"
+  | "dining"
+  | "utility";
 
 export interface RoomDef {
   id: RoomId;
@@ -73,6 +75,8 @@ export const ROOMS: RoomDef[] = [
   { id: "office", name: "Manager Office", icon: "📋", color: 0xd9c8f2, enclosed: true, bounds: { x: 8, z: 0, w: 8, d: 7 }, spawn: { x: 12, z: 5.6, yaw: N } },
   { id: "rest", name: "Staff Rest Area", icon: "☕", color: 0xffcfb3, enclosed: true, bounds: { x: 16, z: 0, w: 8, d: 7 }, spawn: { x: 17, z: 5.6, yaw: N } },
   { id: "surau", name: "Surau", icon: "🕌", color: 0xb5dfc3, enclosed: true, bounds: { x: 18, z: 10, w: 6, d: 7 }, spawn: { x: 19.4, z: 13.5, yaw: E } },
+  { id: "dining", name: "Ruang Makan & Arcade", short: "Ruang Makan", icon: "🍽️", color: 0xffe3b3, enclosed: false, bounds: { x: 18, z: 23, w: 6, d: 7 }, spawn: { x: 18.8, z: 26.6, yaw: E } },
+  { id: "utility", name: "Bilik Utiliti", icon: "⚡", color: 0xd8dde6, enclosed: true, bounds: { x: 19, z: 7, w: 5, d: 3 }, spawn: { x: 19.8, z: 8.6, yaw: -Math.PI / 2 } },
   { id: "chiller", name: "Bilik Sejuk", icon: "❄️", color: 0xcfe9f7, enclosed: true, bounds: { x: 0, z: 10, w: 2, d: 9 }, spawn: { x: 1, z: 10.8, yaw: S } },
   { id: "restroom", name: "Tandas", icon: "🚻", color: 0xc9e6f5, enclosed: true, bounds: { x: 18, z: 17, w: 6, d: 6 }, spawn: { x: 19.4, z: 19.8, yaw: E } },
 ];
@@ -95,6 +99,7 @@ export const DOORS: Door[] = [
   { room: "surau", axis: "v", at: 18, from: 12.6, to: 14.4 },
   { room: "restroom", axis: "v", at: 18, from: 18.9, to: 20.7 },
   { room: "chiller", axis: "h", at: 10, from: 0.35, to: 1.65 },
+  { room: "utility", axis: "v", at: 19, from: 7.9, to: 9.3 },
 ];
 
 /** Main entrance gap in the front wall. */

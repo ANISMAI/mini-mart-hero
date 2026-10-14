@@ -1,5 +1,8 @@
 import { css, el } from "./dom";
 import { imageUrl, isUnlocked, itemsIn, rm, SECTIONS, type Category } from "../data/catalog";
+import { AC_MAX, AC_MIN, ZONES, type ZoneId } from "../data/utilities";
+import type UtilityService from "../game/Utilities";
+import type { PowerState } from "../game/Utilities";
 
 /**
  * OverlayController: the 2D task screens shown on top of the 3D store (hybrid mode).
@@ -9,6 +12,8 @@ export default class Overlays {
   private root: HTMLDivElement;
   private card: HTMLDivElement;
   private onClose: (() => void) | null = null;
+  /** Live panels: rebuilds the body when the state they show changes. */
+  private live: (() => void) | null = null;
 
   constructor(parent: HTMLElement) {
     this.root = el("div", "overlay hidden");
@@ -39,12 +44,30 @@ export default class Overlays {
     f.append(...footer);
     this.card.replaceChildren(head, b, f);
     this.onClose = onClose;
+    this.live = null;
     this.root.classList.remove("hidden");
+  }
+
+  /** Opens a panel whose body is re-rendered by refresh() (state changes, countdowns). */
+  private openLive(title: string, icon: string, render: () => HTMLElement[], footer: HTMLElement[], onClose: () => void, cls = ""): void {
+    this.open(title, icon, render(), footer, onClose, cls);
+    const body = this.card.querySelector(".card-body")!;
+    this.live = () => {
+      const scroll = body.scrollTop;
+      body.replaceChildren(...render());
+      body.scrollTop = scroll;
+    };
+  }
+
+  /** Re-renders the open live panel, if any. */
+  refresh(): void {
+    if (this.isOpen) this.live?.();
   }
 
   close(): void {
     if (!this.isOpen) return;
     this.root.classList.add("hidden");
+    this.live = null;
     const cb = this.onClose;
     this.onClose = null;
     cb?.();
@@ -154,4 +177,137 @@ export default class Overlays {
       "small"
     );
   }
+
+  // ---------- Phase 1.5 utilities ----------
+
+  /** Air-conditioner controller: ON/OFF and a preset temperature. */
+  aircon(svc: UtilityService, onClose: () => void): void {
+    this.openLive(
+      "Aircond",
+      "❄️",
+      () => {
+        const a = svc.aircon;
+        const status = el("div", `util-status ${svc.acRunning ? "ok" : "off"}`, !a.powered ? "⚡ Tiada bekalan elektrik" : a.isOn ? "❄️ Sedang berjalan" : "Dimatikan");
+        const temp = el("div", "ac-temp", `${a.targetTemperature}°C`);
+        const minus = el("button", "btn round", "−");
+        minus.setAttribute("aria-label", "Turunkan suhu");
+        minus.disabled = a.targetTemperature <= AC_MIN;
+        minus.addEventListener("click", () => svc.setTemperature(a.targetTemperature - 1));
+        const plus = el("button", "btn round", "+");
+        plus.setAttribute("aria-label", "Naikkan suhu");
+        plus.disabled = a.targetTemperature >= AC_MAX;
+        plus.addEventListener("click", () => svc.setTemperature(a.targetTemperature + 1));
+        const row = el("div", "ac-row");
+        row.append(minus, temp, plus);
+        const presets = el("div", "chip-row");
+        for (const t of [22, 24, 26, 28]) {
+          const chip = el("button", `chip ${t === a.targetTemperature ? "on" : ""}`, `${t}°`);
+          chip.addEventListener("click", () => svc.setTemperature(t));
+          presets.appendChild(chip);
+        }
+        const power = el("button", `btn ${a.isOn ? "" : "primary"}`, a.isOn ? "⏻ Matikan" : "⏻ Hidupkan");
+        power.addEventListener("click", () => svc.setAircon(!a.isOn));
+        const note = el("p", "muted", "Aircond guna litar kedai utama. Peti sejuk dan lampu tidak terjejas.");
+        return [status, row, presets, power, note];
+      },
+      [this.closeBtn("Tutup")],
+      onClose,
+      "small"
+    );
+  }
+
+  /** Manager's light panel: every zone, plus all on / all off. */
+  lights(svc: UtilityService, onClose: () => void): void {
+    this.openLive(
+      "Panel Lampu",
+      "💡",
+      () => {
+        const all = el("div", "chip-row");
+        const on = el("button", "btn", "💡 Semua ON");
+        on.addEventListener("click", () => svc.setAll(true));
+        const off = el("button", "btn", "🌙 Semua OFF");
+        off.addEventListener("click", () => svc.setAll(false));
+        all.append(on, off);
+        const list = el("div", "util-list");
+        for (const z of ZONES) list.appendChild(zoneRow(svc, z.id, z.icon));
+        return [el("p", "muted", "Suis di dinding setiap bilik masih boleh tukar zon masing-masing."), all, list];
+      },
+      [this.closeBtn("Tutup")],
+      onClose
+    );
+  }
+
+  /** Closed electrical cabinet: fictional status only; the player can just call a technician. */
+  electrical(svc: UtilityService, dev: boolean, onClose: () => void): void {
+    const labels: Record<PowerState, [string, string]> = {
+      normal: ["✅ Normal", "ok"],
+      warning: ["⚠️ Amaran", "warn"],
+      outage: ["⚡ Gangguan", "bad"],
+      technician: ["🔧 Juruteknik dipanggil", "info"],
+      restored: ["✅ Pulih", "ok"],
+    };
+    this.openLive(
+      "Panel Elektrik",
+      "⚡",
+      () => {
+        const e = svc.event;
+        const [text, cls] = labels[e.state];
+        const out: HTMLElement[] = [el("div", `util-status ${cls}`, text)];
+        if (e.state === "warning") out.push(el("p", "muted", "Bekalan tidak stabil. Zon bertanda mungkin terputus sebentar lagi."));
+        if (e.state === "technician") out.push(el("p", "big-msg", `Juruteknik tiba dalam ${svc.technicianEta}s`));
+        const list = el("div", "util-list");
+        for (const z of ZONES) {
+          const st = svc.zones.get(z.id)!;
+          const atRisk = e.state === "warning" && e.affectedZoneIds.includes(z.id);
+          const row = el("div", `util-row ${st.powered ? (atRisk ? "risk" : "") : "cut"}`);
+          const pill = !z.tripable ? "🛡️ Litar berasingan" : !st.powered ? "⚡ Terputus" : atRisk ? "⚠️ Berisiko" : "Ada bekalan";
+          row.append(el("span", "util-name", `${z.icon} ${z.label}`), el("span", "util-pill", pill));
+          list.appendChild(row);
+        }
+        const ac = el("div", `util-row ${svc.aircon.powered ? "" : "cut"}`);
+        ac.append(el("span", "util-name", "❄️ Aircond"), el("span", "util-pill", svc.aircon.powered ? "Ada bekalan" : "⚡ Terputus"));
+        list.appendChild(ac);
+        const fridge = el("div", "util-row");
+        fridge.append(el("span", "util-name", "🧊 Penyejukan peti sejuk"), el("span", "util-pill", "🛡️ Sentiasa sejuk"));
+        list.appendChild(fridge);
+        out.push(list);
+        const call = el("button", "btn primary", e.state === "technician" ? "🔧 Juruteknik sudah dipanggil" : "🔧 Panggil Juruteknik");
+        call.disabled = e.state !== "outage";
+        call.addEventListener("click", () => svc.callTechnician());
+        out.push(call, el("p", "muted", "Panel ini untuk melihat status sahaja. Kerja elektrik hanya dibuat oleh juruteknik bertauliah."));
+        if (dev) {
+          const box = el("div", "dev-box");
+          box.appendChild(el("p", "muted", "🛠️ Developer (demo sahaja)"));
+          const row = el("div", "chip-row");
+          const trig = el("button", "btn", "Uji gangguan");
+          trig.disabled = e.state !== "normal";
+          trig.addEventListener("click", () => svc.triggerEvent());
+          const now = el("button", "btn", "Selesai segera");
+          now.disabled = e.state === "normal" || e.state === "restored";
+          now.addEventListener("click", () => svc.resolveNow());
+          const reset = el("button", "btn", "Reset Demo Event");
+          reset.addEventListener("click", () => svc.resetDemo());
+          row.append(trig, now, reset);
+          box.appendChild(row);
+          out.push(box);
+        }
+        return out;
+      },
+      [this.closeBtn("Tutup")],
+      onClose
+    );
+  }
+}
+
+function zoneRow(svc: UtilityService, id: ZoneId, icon: string): HTMLElement {
+  const st = svc.zones.get(id)!;
+  const row = el("div", `util-row ${st.powered ? "" : "cut"}`);
+  const btn = el("button", `switch-btn ${st.lightsOn ? "on" : ""}`, st.lightsOn ? "ON" : "OFF");
+  btn.setAttribute("aria-label", `${st.label}: ${st.lightsOn ? "ON" : "OFF"}`);
+  btn.setAttribute("aria-pressed", String(st.lightsOn));
+  btn.addEventListener("click", () => svc.toggleZone(id));
+  row.append(el("span", "util-name", `${icon} ${st.label}`));
+  if (!st.powered) row.append(el("span", "util-pill", "⚡ Tiada bekalan"));
+  row.append(btn);
+  return row;
 }

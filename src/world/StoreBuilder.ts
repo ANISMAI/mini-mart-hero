@@ -4,13 +4,20 @@ import { at, blob, cube, label, mat, rbox } from "./kit";
 import { DOORS, ENTRANCE_GAP, ROOMS, STORE, type RoomId } from "../data/rooms";
 import { SECTIONS, unlockedIn, type CatalogItem, type Category } from "../data/catalog";
 import { fillShelf, type ShelfRun } from "./ProductModels";
+import { cashierCounter } from "./Counter";
+import { buildRestroom } from "./Restroom";
+import { buildSurau } from "./Surau";
+import { buildStaffRoom } from "./StaffRoom";
+import { arcade, buildDecor, diningTable, snackCounter, wallPoster } from "./Decor";
+import { AC_CONTROLLER, CABINET, ZONES, type ZoneId } from "../data/utilities";
 
 // Builds the whole store: floors, walls with doorways, shelves with products, counter, back
 // rooms, restroom and surau. Everything is simple rounded low-poly geometry and flat colours,
 // so it's light on mobile GPUs. Replace pieces with glTF models later without changing
 // collisions or the room registry (see README).
 
-export type TaskKind = "cashier" | "organizer" | "info";
+/** Phase 1.5 adds: light switch (instant), AC controller, manager light panel, electrical cabinet. */
+export type TaskKind = "cashier" | "organizer" | "info" | "switch" | "aircon" | "lights" | "electrical";
 
 export interface Interactable {
   id: string;
@@ -25,6 +32,8 @@ export interface Interactable {
   shelf?: Category | "storage";
   title?: string;
   text?: string;
+  /** Light switch: the zone it controls. */
+  zone?: ZoneId;
   room: RoomId;
 }
 
@@ -47,12 +56,27 @@ export interface BuiltStore {
   occluders: THREE.Object3D[];
   interactables: Interactable[];
   doors: SwingDoor[];
+  /** Automatic sliding glass doors at the entrance. */
+  entrance: SlidingDoors;
+  /** Restroom mirror with a live reflection (only worth rendering while the player is inside). */
+  mirror: THREE.Object3D;
+}
+
+/** Two glass leaves that slide apart when someone comes near. */
+export interface SlidingDoors {
+  x: number;
+  z: number;
+  /** Opening distance of each leaf (m). */
+  travel: number;
+  leaves: { leaf: THREE.Object3D; closedX: number; dir: 1 | -1 }[];
+  open: number;
 }
 
 const C = {
   floor: 0xf2ece2,
   floorAlt: 0xe6ddcf,
-  wall: 0xfbf6ee,
+  wall: 0xfff6e6,
+  wainscot: 0xc9eedd,
   wallTop: 0xd3dae3,
   trim: 0x2fb38a,
   wood: 0xd9a86c,
@@ -118,7 +142,12 @@ export function buildStore(level = 1): BuiltStore {
         cap.position.set(mesh.position.x, h + 0.03, mesh.position.z);
         cap.material = (cap.material as THREE.Material).clone();
         add(cap);
-        mesh.userData.fade = [mesh, skirt, cap];
+        // pastel lower band (wainscot), like a painted shop wall
+        const band = cube(axis === "h" ? len : t + 0.012, Math.min(0.85, h - 0.3), axis === "h" ? t + 0.012 : len, C.wainscot);
+        band.material = (band.material as THREE.Material).clone();
+        band.position.set(mesh.position.x, 0.18 + Math.min(0.85, h - 0.3) / 2, mesh.position.z);
+        add(band);
+        mesh.userData.fade = [mesh, skirt, cap, band];
         const b = axis === "h" ? box(start, c - t / 2, len, t) : box(c - t / 2, start, t, len);
         mesh.userData.box = b;
         solid(b);
@@ -163,6 +192,10 @@ export function buildStore(level = 1): BuiltStore {
   wall("h", 10, 18, STORE.w);
   wall("h", 17, 18, STORE.w);
   wall("h", 23, 18, STORE.w);
+  // utility / electrical room at the east end of the back corridor (staff only)
+  wall("v", 19, 7, 10, gapsOn("v", 19));
+  add(at(label("⚡ BILIK UTILITI", { width: 1.5, height: 0.34, bg: "#3a4252" }), 18.8, 2.4, 8.6, -Math.PI / 2));
+  add(at(label("Kakitangan sahaja", { width: 0.8, height: 0.2, bg: "#e8333f" }), 18.88, 1.6, 7.45, -Math.PI / 2));
   // chiller room behind the drink coolers (staff top up the coolers from the back)
   wall("h", 10, 0, 2, gapsOn("h", 10));
   wall("h", 19, 0, 2);
@@ -171,14 +204,37 @@ export function buildStore(level = 1): BuiltStore {
   add(at(label("❄️ BILIK SEJUK", { width: 1.5, height: 0.34, bg: "#1f8fd6" }), 1, 2.4, 9.8, Math.PI));
 
   // ---------- entrance ----------
+  // fixed side panes the doors slide behind, framed as one automatic-door unit with a header
   for (const side of [-1, 1]) {
     const glass = new THREE.Mesh(new THREE.BoxGeometry(1.5, 2.2, 0.06), mat(0xbfe6fb, { transparent: true, opacity: 0.45 }));
     glass.position.set(12 + side * 2.9, 1.1, STORE.d - 0.1);
     add(glass);
+    for (const x of [12 + side * 2.15, 12 + side * 3.68]) add(at(cube(0.1, 2.3, 0.12, C.trim), x, 1.15, STORE.d - 0.1)); // pane posts
+    add(at(cube(1.5, 0.08, 0.12, C.trim), 12 + side * 2.9, 0.04, STORE.d - 0.1)); // sill
   }
-  const mat1 = rbox(3, 0.03, 1.4, 0x3a4252, 0.1);
-  add(at(mat1, 12, 0, 28.9));
-  // shop name + welcome over the entrance (inside)
+  add(at(cube(7.6, 0.18, 0.2, C.trim), 12, 2.38, STORE.d - 0.12)); // header across the whole unit
+  // shopfront windows above the low front wall on both sides of the door unit
+  for (const [x0, x1] of [[0.1, 8.05], [15.95, 23.9]]) {
+    const pane = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, 1.4, 0.04), mat(0xcfefff, { transparent: true, opacity: 0.25 }));
+    add(at(pane, (x0 + x1) / 2, 1.9, STORE.d - 0.1));
+    const n = Math.round((x1 - x0) / 2);
+    for (let i = 0; i <= n; i++) add(at(cube(0.06, 1.4, 0.08, C.trim), x0 + ((x1 - x0) * i) / n, 1.9, STORE.d - 0.1)); // mullions
+    add(at(cube(x1 - x0, 0.06, 0.08, C.trim), (x0 + x1) / 2, 2.6, STORE.d - 0.1)); // head rail
+  }
+  add(at(cube(0.36, 0.1, 0.12, 0x3a4252), 12, 2.24, STORE.d - 0.24)); // motion sensor
+  add(at(new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff4d4d })), 12.1, 2.2, STORE.d - 0.31));
+  // automatic sliding doors: two glass leaves just inside the fixed panes
+  const entrance: SlidingDoors = { x: 12, z: STORE.d - 0.1, travel: 1.9, leaves: [], open: 0 };
+  for (const dir of [-1, 1] as const) {
+    const leaf = new THREE.Group();
+    leaf.add(at(new THREE.Mesh(new THREE.BoxGeometry(1.96, 2.1, 0.04), mat(0xbfe6fb, { transparent: true, opacity: 0.4 })), 0, 1.1, 0));
+    for (const y of [0.04, 2.17]) leaf.add(at(cube(2, 0.08, 0.06, C.trim), 0, y, 0));
+    for (const x of [-0.97, 0.97]) leaf.add(at(cube(0.06, 2.2, 0.06, C.trim), x, 1.1, 0));
+    leaf.add(at(cube(0.04, 0.5, 0.05, 0xc9d2dc), -dir * 0.85, 1.05, -0.05)); // handle bar
+    const closedX = 12 + dir * 1;
+    add(at(leaf, closedX, 0, STORE.d - 0.2));
+    entrance.leaves.push({ leaf, closedX, dir });
+  }
   // shop name + welcome on the back corridor wall, between the Storage and Office doors
   add(at(label("🛒  MINI MARKET HERO", { width: 3.4, height: 0.56, bg: "#2fb38a" }), 8.25, 2.0, 7.13));
   add(at(label("Selamat Datang · Welcome", { width: 2.6, height: 0.34, bg: "#23364f" }), 8.25, 1.5, 7.13));
@@ -248,24 +304,9 @@ export function buildStore(level = 1): BuiltStore {
   solid(box(2.05, 11, 1, 7));
 
   // ---------- cashier counter ----------
-  const counter = new THREE.Group();
-  counter.add(at(rbox(6, 0.95, 0.8, 0xe8ecf1, 0.08), 0, 0, 0));
-  counter.add(at(rbox(6.1, 0.06, 0.9, C.wood, 0.05), 0, 0.95, 0));
-  counter.add(at(cube(6, 0.14, 0.82, C.trim), 0, 0.2, 0));
-  counter.add(at(rbox(2.6, 0.06, 0.5, 0x3a4252, 0.04), 0.8, 1.0, 0)); // conveyor
-  for (let i = 0; i < 9; i++) counter.add(at(cube(0.02, 0.01, 0.48, 0x6b7586), -0.4 + i * 0.3, 1.065, 0));
-  counter.add(at(rbox(0.35, 0.12, 0.35, 0x2b3240, 0.05), -1.1, 1.0, 0)); // scanner
-  counter.add(at(cube(0.22, 0.01, 0.03, 0xff4f5e), -1.1, 1.125, 0));
-  const register = new THREE.Group();
-  register.add(at(rbox(0.6, 0.28, 0.5, 0x3a4252, 0.06), 0, 0, 0));
-  const screen = cube(0.5, 0.32, 0.04, 0x9ff0d6);
-  screen.rotation.x = -0.25;
-  register.add(at(screen, 0, 0.5, 0.1));
-  register.add(at(cube(0.08, 0.2, 0.08, 0x3a4252), 0, 0.3, 0.15));
-  counter.add(at(register, -2.2, 1.0, 0, Math.PI));
-  for (let i = 0; i < 2; i++) counter.add(at(rbox(0.32, 0.38, 0.22, i ? 0xf9c833 : 0xbba8e5, 0.04), 2.5 + i * 0.36, 1.0, 0)); // shopping bags
-  add(at(counter, 5, 0, 22));
+  cashierCounter(group, 5, 22);
   solid(boxC(5, 22, 6.1, 0.9));
+  solid(boxC(8.35, 22.5, 0.3, 0.6)); // sweets rack at the counter end
   interactables.push({
     id: "cashier",
     label: "Use the till",
@@ -331,67 +372,47 @@ export function buildStore(level = 1): BuiltStore {
   add(at(label("📋 OFFICE", { width: 1.6, height: 0.38, bg: "#7a55d6" }), 12, 2.4, 7.2));
   interactables.push({
     id: "office",
-    label: "Manager desk",
-    icon: "📋",
+    label: "Panel lampu pengurus",
+    icon: "💡",
     x: 12,
     z: 3.3,
     radius: 1.3,
-    kind: "info",
-    title: "Manager Office",
-    text: "Daily missions, shift goals and career ranks will appear here in a later phase.",
+    kind: "lights",
     room: "office",
   });
 
   // ---------- staff rest area ----------
-  const sofa = new THREE.Group();
-  sofa.add(at(rbox(2.4, 0.42, 0.9, 0x8f6ee0, 0.15), 0, 0, 0));
-  sofa.add(at(rbox(2.4, 0.5, 0.25, 0x7a5ad0, 0.12), 0, 0.4, -0.33));
-  sofa.add(at(rbox(0.25, 0.3, 0.9, 0x7a5ad0, 0.1), -1.2, 0.4, 0));
-  sofa.add(at(rbox(0.25, 0.3, 0.9, 0x7a5ad0, 0.1), 1.2, 0.4, 0));
-  add(at(sofa, 20.5, 0, 1));
-  solid(boxC(20.5, 1, 2.7, 1));
-  add(at(rbox(1.2, 0.4, 0.7, C.wood, 0.08), 20.5, 0, 2.6));
-  solid(boxC(20.5, 2.6, 1.2, 0.7));
-  add(at(rbox(0.2, 0.18, 0.2, 0xffffff, 0.05), 20.3, 0.4, 2.6)); // mug
-  add(at(rbox(0.8, 1.6, 0.6, 0xf4f7fb, 0.08), 23.3, 0, 4.5)); // fridge
-  solid(boxC(23.3, 4.5, 0.8, 0.6));
-  addPlant(group, 17, 0.8);
+  buildStaffRoom(group, solid);
+  addPlant(group, 23.4, 0.7);
   add(at(label("☕ STAFF ROOM", { width: 1.9, height: 0.38, bg: "#e07b39" }), 17.2, 2.4, 7.2));
   interactables.push({
     id: "rest",
-    label: "Take a seat",
-    icon: "☕",
+    label: "Duduk berehat",
+    icon: "🛋️",
     x: 20.5,
     z: 3.6,
     radius: 1.4,
     kind: "info",
-    title: "Staff Rest Area",
-    text: "A cosy spot to recharge between customers. Breaks and energy will come in a later phase.",
+    title: "Bilik Rehat Staf",
+    text: "Tempat staf berehat, minum dan makan antara syif. Rehat dan tenaga akan datang dalam fasa seterusnya.",
+    room: "rest",
+  });
+  interactables.push({
+    id: "pantry",
+    label: "Buat air",
+    icon: "☕",
+    x: 22.5,
+    z: 3.4,
+    radius: 1.1,
+    kind: "info",
+    title: "Pantri",
+    text: "Cerek, kopi, teh dan microwave untuk staf. ☕ Teh tarik panas siap!",
     room: "rest",
   });
 
   // ---------- surau ----------
-  // modest prayer mats (no text or symbols), shoe rack by the door, calm green walls inside
-  for (let i = 0; i < 3; i++) {
-    const m = new THREE.Group();
-    m.add(at(rbox(0.75, 0.025, 1.25, 0x2e8f57, 0.06), 0, 0, 0));
-    m.add(at(rbox(0.6, 0.03, 1.1, 0x23744a, 0.05), 0, 0, 0));
-    const arch = new THREE.Mesh(new THREE.CircleGeometry(0.2, 16, 0, Math.PI), mat(0xf2c94c));
-    arch.rotation.x = -Math.PI / 2;
-    arch.position.set(0, 0.034, -0.38);
-    m.add(arch);
-    add(at(m, 20.6 + i * 1.05, 0, 13.5, 0));
-  }
-  const rack = new THREE.Group();
-  rack.add(at(rbox(1.0, 0.5, 0.35, C.wood, 0.04), 0, 0, 0));
-  for (let i = 0; i < 3; i++) rack.add(at(rbox(0.22, 0.08, 0.14, [0x3a4252, 0xec5470, 0xffffff][i], 0.03), -0.3 + i * 0.3, 0.5, 0));
-  add(at(rack, 18.8, 0, 11.2, Math.PI / 2));
-  solid(boxC(18.8, 11.2, 0.4, 1.0));
-  const prayerRack = new THREE.Group();
-  prayerRack.add(at(rbox(1.4, 0.9, 0.4, C.wood, 0.05), 0, 0, 0));
-  for (let i = 0; i < 4; i++) prayerRack.add(at(rbox(0.28, 0.16, 0.3, [0xffffff, 0xf3eefb, 0x2e8f57, 0x8f6ee0][i], 0.04), -0.48 + i * 0.32, 0.9, 0));
-  add(at(prayerRack, 21.6, 0, 10.4));
-  solid(boxC(21.6, 10.4, 1.4, 0.4));
+  // prayer hall facing the qibla (north wall) and an ablution corner by the door
+  buildSurau(group, solid);
   add(at(label("🕌 SURAU", { width: 1.6, height: 0.38, bg: "#2e8f57" }), 17.8, 2.4, 13.5, -Math.PI / 2));
   doors.push(swingDoor(group, "v", 18, 12.6, 14.4, 0x2e8f57));
   interactables.push({
@@ -406,25 +427,21 @@ export function buildStore(level = 1): BuiltStore {
     text: "A clean, quiet room for prayer. Please remove your shoes at the rack inside the door. Open to everyone, any time.",
     room: "surau",
   });
+  interactables.push({
+    id: "wudhu",
+    label: "Tempat wuduk",
+    icon: "💧",
+    x: 21.0,
+    z: 15.45,
+    radius: 1.3,
+    kind: "info",
+    title: "Tempat Ambil Wuduk",
+    text: "Paip air untuk mengambil wuduk sebelum solat. Sila jimatkan air dan pastikan lantai tidak licin. 💧",
+    room: "surau",
+  });
 
   // ---------- restroom ----------
-  const stall = new THREE.Group();
-  stall.add(at(rbox(0.05, 2, 1.6, 0xdcd5ec, 0.02), -0.8, 0, 0));
-  stall.add(at(rbox(1.6, 2, 0.05, 0xdcd5ec, 0.02), 0, 0, -0.8));
-  add(at(stall, 23.2, 0, 18.2));
-  const bowl = new THREE.Group();
-  bowl.add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.17, 0.42, 16), mat(0xffffff)), 0, 0.21, 0));
-  bowl.add(at(new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.04, 8, 16), mat(0xbba8e5)), 0, 0.43, 0));
-  bowl.children[1].rotation.x = Math.PI / 2;
-  bowl.add(at(rbox(0.42, 0.42, 0.18, 0xffffff, 0.04), 0, 0.3, -0.32)); // cistern
-  add(at(bowl, 23.3, 0, 18.4));
-  solid(boxC(23.3, 18.3, 0.6, 0.8));
-  add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.1, 12), mat(0xffffff)), 23.85, 0.85, 18.9)); // tissue roll
-  // sink + mirror
-  add(at(rbox(0.9, 0.85, 0.45, 0xf4f7fb, 0.08), 21, 0, 22.7));
-  solid(boxC(21, 22.7, 0.9, 0.5));
-  add(at(cube(0.7, 0.5, 0.03, 0xd9ecf7), 21, 1.5, 22.88));
-  add(at(cube(0.06, 0.18, 0.06, 0xa7b6c9), 21, 0.95, 22.75));
+  const mirror = buildRestroom(group, solid);
   add(at(label("🚻 TANDAS", { width: 1.6, height: 0.38, bg: "#2a9fd6" }), 17.8, 2.4, 19.8, -Math.PI / 2));
   add(at(label("♿ Accessible", { width: 1.1, height: 0.3, bg: "#2a9fd6" }), 17.88, 1.7, 21.3, -Math.PI / 2));
   doors.push(swingDoor(group, "v", 18, 18.9, 20.7, 0x2a9fd6));
@@ -444,11 +461,66 @@ export function buildStore(level = 1): BuiltStore {
   // ---------- decor ----------
   addPlant(group, 0.8, 29);
   addPlant(group, 23.2, 29);
-  addPlant(group, 17.2, 8.5);
-  add(at(rbox(1.6, 0.4, 0.5, C.wood, 0.1), 21, 0, 27)); // bench near the entrance
-  solid(boxC(21, 27, 1.6, 0.5));
 
-  return { group, collisions, occluders, interactables, doors };
+  // ---------- dining corner (front right): eat what you bought, plus an arcade ----------
+  diningTable(group, 19.7, 25.5);
+  solid(boxC(19.7, 25.5, 1, 1));
+  diningTable(group, 21.6, 27.7);
+  solid(boxC(21.6, 27.7, 1, 1));
+  snackCounter(group, 19.6, 23.4, "south");
+  solid(boxC(19.6, 23.4, 2.1, 0.55));
+  arcade(group, 23.35, 23.75, -Math.PI / 4);
+  solid(boxC(23.35, 23.75, 0.9, 0.9));
+  wallPoster(group, [["Sila kemas meja", 30, "#23364f"], ["selepas makan 🙏", 30, "#23364f"]], "#fff4c2", 1.1, 0.5, 21.75, 1.65, 23.11, "south");
+  interactables.push({
+    id: "dining",
+    label: "Duduk & makan",
+    icon: "🍽️",
+    x: 20.6,
+    z: 26.6,
+    radius: 1.5,
+    kind: "info",
+    title: "Ruang Makan",
+    text: "Pelanggan boleh duduk makan dan minum apa yang mereka beli di sini. Pelanggan yang duduk makan akan datang dalam fasa seterusnya.",
+    room: "dining",
+  });
+  interactables.push({
+    id: "arcade",
+    label: "Main arcade",
+    icon: "🕹️",
+    x: 22.6,
+    z: 24.5,
+    radius: 1.2,
+    kind: "info",
+    title: "Arcade · Snek Hero",
+    text: "🕹️ Mesin arcade ni akan boleh dimainkan dalam fasa akan datang. Kumpul syiling dulu!",
+    room: "dining",
+  });
+
+  buildDecor(group);
+
+  // ---------- Phase 1.5 utilities: switches, AC controller, electrical cabinet ----------
+  // (their 3D models are built by UtilityVisuals; here only collisions and interact points)
+  for (const z of ZONES)
+    interactables.push({
+      id: `switch-${z.id}`,
+      label: `Suis lampu · ${z.label}`,
+      icon: "💡",
+      x: z.switchAt.ix,
+      z: z.switchAt.iz,
+      radius: 0.85,
+      kind: "switch",
+      zone: z.id,
+      room: roomOfPoint(z.switchAt.ix, z.switchAt.iz),
+    });
+  interactables.push({ id: "aircon", label: "Alat kawalan aircond", icon: "❄️", x: AC_CONTROLLER.ix, z: AC_CONTROLLER.iz, radius: 0.95, kind: "aircon", room: "queue" });
+  interactables.push({ id: "electrical", label: "Panel elektrik", icon: "⚡", x: CABINET.ix, z: CABINET.iz, radius: 1.1, kind: "electrical", room: "utility" });
+  solid(boxC(CABINET.x, CABINET.z, 0.35, 0.95));
+  // a shelf of spare bulbs and filters in the utility room
+  add(at(cube(1.4, 0.04, 0.4, 0xb9c2cf), 21, 1.0, 7.35));
+  for (let i = 0; i < 4; i++) add(at(rbox(0.28, 0.22, 0.26, i % 2 ? 0xf9c833 : 0x9fd3f2, 0.03), 20.5 + i * 0.33, 1.02, 7.35));
+
+  return { group, collisions, occluders, interactables, doors, entrance, mirror };
 }
 
 // ---------- pieces ----------
@@ -647,4 +719,9 @@ function swingDoor(group: THREE.Group, axis: "h" | "v", c: number, from: number,
   pivot.position.set(axis === "v" ? c : from, 0, axis === "v" ? from : c);
   group.add(pivot);
   return { pivot, x: axis === "v" ? c : (from + to) / 2, z: axis === "v" ? (from + to) / 2 : c, open: 0, openAngle: Math.PI * 0.55 }; // swings into the room (+x)
+}
+
+/** Room id for a point (falls back to the entrance for corridor spots). */
+function roomOfPoint(x: number, z: number): RoomId {
+  return ROOMS.find((r) => r.enclosed && x >= r.bounds.x && x <= r.bounds.x + r.bounds.w && z >= r.bounds.z && z <= r.bounds.z + r.bounds.d)?.id ?? "entrance";
 }
