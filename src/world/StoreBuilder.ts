@@ -3,7 +3,7 @@ import WorldCollisions, { box, boxC, type Box } from "./collisions";
 import { at, blob, cube, label, mat, rbox } from "./kit";
 import { DOORS, ENTRANCE_GAP, ROOMS, STORE, type RoomId } from "../data/rooms";
 import { SECTIONS, unlockedIn, type CatalogItem, type Category } from "../data/catalog";
-import { fillShelf, type ShelfRun } from "./ProductModels";
+import { fillShelf, type ProductSpot, type ShelfRun } from "./ProductModels";
 import { cashierCounter } from "./Counter";
 import { buildRestroom } from "./Restroom";
 import { buildSurau } from "./Surau";
@@ -60,6 +60,8 @@ export interface BuiltStore {
   entrance: SlidingDoors;
   /** Restroom mirror with a live reflection (only worth rendering while the player is inside). */
   mirror: THREE.Object3D;
+  /** Phase 2: where each product on display can be picked up (world coordinates). */
+  productSpots: Map<string, ProductSpot>;
 }
 
 /** Two glass leaves that slide apart when someone comes near. */
@@ -96,6 +98,7 @@ export function buildStore(level = 1): BuiltStore {
   const occluders: THREE.Object3D[] = [];
   const interactables: Interactable[] = [];
   const doors: SwingDoor[] = [];
+  const productSpots = new Map<string, ProductSpot>();
   const add = (o: THREE.Object3D) => (group.add(o), o);
   const solid = (b: Box) => collisions.add(b);
 
@@ -277,13 +280,13 @@ export function buildStore(level = 1): BuiltStore {
       room,
     });
   for (const a of aisles) {
-    buildShelf(group, a.x, shelfZ, shelfLen, unlockedIn(a.west, level), unlockedIn(a.east, level), a.accent);
+    for (const spot of buildShelf(group, a.x, shelfZ, shelfLen, unlockedIn(a.west, level), unlockedIn(a.east, level), a.accent)) productSpots.set(spot.sku, spot);
     solid(box(a.x - 0.5, shelfZ, 1, shelfLen));
     organizerAt(a.east, a.x + 0.9, shelfZ + shelfLen - 0.6, a.room);
     if (a.west !== a.east) organizerAt(a.west, a.x - 0.9, shelfZ + shelfLen - 0.6, a.room);
   }
   // drinks & dairy coolers against the left wall, glass doors facing the aisle
-  buildCoolers(group, doors, 2.05, 11, 3, unlockedIn("fridge", level));
+  for (const spot of buildCoolers(group, doors, 2.05, 11, 3, unlockedIn("fridge", level))) productSpots.set(spot.sku, spot);
   organizerAt("fridge", 3.9, 17.4, "drinks");
   // chiller room: drink crates along the wall, top-up point behind the coolers
   for (const [z, n] of [[11.4, 3], [12.6, 2], [16.4, 3], [17.6, 2]] as const) {
@@ -309,7 +312,7 @@ export function buildStore(level = 1): BuiltStore {
   solid(boxC(8.35, 22.5, 0.3, 0.6)); // sweets rack at the counter end
   interactables.push({
     id: "cashier",
-    label: "Use the till",
+    label: "Kaunter cashier",
     icon: "🧾",
     x: 3,
     z: 21.3,
@@ -520,7 +523,7 @@ export function buildStore(level = 1): BuiltStore {
   add(at(cube(1.4, 0.04, 0.4, 0xb9c2cf), 21, 1.0, 7.35));
   for (let i = 0; i < 4; i++) add(at(rbox(0.28, 0.22, 0.26, i % 2 ? 0xf9c833 : 0x9fd3f2, 0.03), 20.5 + i * 0.33, 1.02, 7.35));
 
-  return { group, collisions, occluders, interactables, doors, entrance, mirror };
+  return { group, collisions, occluders, interactables, doors, entrance, mirror, productSpots };
 }
 
 // ---------- pieces ----------
@@ -617,7 +620,7 @@ function makeTileTexture(): THREE.CanvasTexture {
 }
 
 /** Double-sided gondola shelf running along z; each face is filled from the catalog. */
-function buildShelf(group: THREE.Group, cx: number, z0: number, len: number, west: CatalogItem[], east: CatalogItem[], accent: number): void {
+function buildShelf(group: THREE.Group, cx: number, z0: number, len: number, west: CatalogItem[], east: CatalogItem[], accent: number): ProductSpot[] {
   const g = new THREE.Group();
   g.add(at(rbox(1, 0.12, len, 0xb9c2cf, 0.03), 0, 0, len / 2));
   g.add(at(cube(0.08, 1.7, len, 0xe9edf2), 0, 0.97, len / 2)); // centre panel
@@ -629,16 +632,13 @@ function buildShelf(group: THREE.Group, cx: number, z0: number, len: number, wes
 
   const runs = (face: 1 | -1): ShelfRun[] =>
     levels.map((y, i) => ({ y: y + 0.025, z0: 0.12, z1: len - 0.12, xFront: face * 0.47, xBack: face * 0.06, face, maxH: i === levels.length - 1 ? 0.62 : 0.42 }));
-  if (west === east) fillShelf(g, west, [...runs(-1), ...runs(1)]);
-  else {
-    fillShelf(g, west, runs(-1));
-    fillShelf(g, east, runs(1));
-  }
+  const spots = west === east ? fillShelf(g, west, [...runs(-1), ...runs(1)]) : [...fillShelf(g, west, runs(-1)), ...fillShelf(g, east, runs(1))];
   group.add(at(g, cx, 0, z0));
+  return spots.map((p) => ({ ...p, x: p.x + cx, z: p.z + z0 }));
 }
 
 /** Upright glass-door drink coolers along the left wall (x 0.1–1.1), facing east; doors open when someone is near. */
-function buildCoolers(parent: THREE.Group, doors: SwingDoor[], x0: number, z0: number, units: number, items: CatalogItem[]): void {
+function buildCoolers(parent: THREE.Group, doors: SwingDoor[], x0: number, z0: number, units: number, items: CatalogItem[]): ProductSpot[] {
   // authored with the back at x = 0.1; shifted as a whole to x0
   const group = new THREE.Group();
   group.position.x = x0 - 0.1;
@@ -681,7 +681,7 @@ function buildCoolers(parent: THREE.Group, doors: SwingDoor[], x0: number, z0: n
       doors.push({ pivot, x: x0 + 1.5, z: hingeZ + (dir * w) / 2, open: 0, openAngle: dir * 0.42 * Math.PI, range: 1.4 });
     }
   }
-  fillShelf(group, items, runs);
+  return fillShelf(group, items, runs).map((p) => ({ ...p, x: p.x + group.position.x }));
 }
 
 function buildRack(boxColor: number): THREE.Group {

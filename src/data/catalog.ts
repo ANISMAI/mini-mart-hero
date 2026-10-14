@@ -181,3 +181,13 @@ export const imageUrl = (p: CatalogItem) => `${import.meta.env.BASE_URL}products
 
 /** "RM3.50" */
 export const rm = (sen: number) => `RM${(sen / 100).toFixed(2)}`;
+
+// ---------- Phase 2: packing classes ----------
+
+/** How an item packs in a bag: heavy goes at the bottom, fragile on top, normal anywhere. */
+export type PackClass = "heavy" | "normal" | "fragile";
+
+const HEAVY: Shape[] = ["sack", "bigBottle", "jug", "can", "tin", "beans", "carton", "tissueRolls"];
+const FRAGILE: Shape[] = ["eggs", "loaf", "chipBag", "cup", "bar", "crackers", "biscuitBox", "pouch", "canister"];
+
+export const packClass = (p: CatalogItem): PackClass => (HEAVY.includes(p.shape) ? "heavy" : FRAGILE.includes(p.shape) ? "fragile" : "normal");

@@ -11,6 +11,21 @@ export interface HUDCallbacks {
 
 const JOY_R = 48;
 
+/** Current UI scale (CSS variable --ui, set by the game from the screen size). */
+export const uiScale = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--ui")) || 1;
+
+/**
+ * One UI scale for every screen: phones 1, tablets about 1.5 to 1.7, desktops a little less.
+ * Based on the short side of the screen so portrait and landscape match.
+ */
+export function updateUiScale(): void {
+  const short = Math.min(window.innerWidth, window.innerHeight);
+  const long = Math.max(window.innerWidth, window.innerHeight);
+  let s = Math.min(1.7, Math.max(1, short / 440));
+  if (long / short > 1.6 && short > 700) s = Math.min(s, 1.4); // wide desktop monitors
+  document.documentElement.style.setProperty("--ui", s.toFixed(3));
+}
+
 /**
  * Mobile HUD: profile/coins (top-left), mini-map (top-right), floating joystick (lower-left),
  * Interact (lower-right), room toast (top-centre). Touches on the rest of the screen rotate the
@@ -32,6 +47,28 @@ export default class HUD {
 
   private levelPill: HTMLElement;
   private alertPill: HTMLElement;
+  private coinsPill: HTMLElement;
+  private objective: HTMLElement;
+
+  setCoins(n: number): void {
+    this.coinsPill.textContent = `🪙 ${n}`;
+  }
+
+  /**
+   * Phase 2 objective card (top-left, under the pills, clear of the mini-map): what to do now
+   * and, while collecting, the shopping list with ticks. null hides it.
+   */
+  setObjective(o: { title: string; items?: { icon: string; name: string; have: number; need: number }[] } | null): void {
+    this.objective.classList.toggle("hidden", !o);
+    if (!o) return;
+    const rows = (o.items ?? []).map((it) => {
+      const done = it.have >= it.need;
+      const r = el("div", `hud-obj-row ${done ? "done" : ""}`);
+      r.append(el("span", "", done ? "✔" : it.icon), el("span", "hud-obj-name", it.name), el("span", "", `${it.have}/${it.need}`));
+      return r;
+    });
+    this.objective.replaceChildren(el("div", "hud-obj-title", o.title), ...rows);
+  }
 
   /** Small status pill (e.g. power problems); null hides it. */
   setAlert(text: string | null): void {
@@ -54,7 +91,10 @@ export default class HUD {
     const profile = el("div", "hud-profile");
     this.levelPill = el("span", "hud-pill", "⭐ Lv 1");
     this.alertPill = el("span", "hud-pill hud-alert hidden");
-    profile.append(el("span", "hud-avatar", "🧑‍💼"), this.levelPill, el("span", "hud-pill", "🪙 0"), this.alertPill);
+    this.coinsPill = el("span", "hud-pill", "🪙 0");
+    this.objective = el("div", "hud-objective hidden");
+    this.objective.setAttribute("aria-live", "polite");
+    profile.append(el("span", "hud-avatar", "🧑‍💼"), this.levelPill, this.coinsPill, this.alertPill, this.objective);
     stats.append(pause, profile);
 
     this.miniMapMount = el("button", "hud-minimap");
@@ -104,15 +144,18 @@ export default class HUD {
     });
     zone.addEventListener("pointermove", (e) => {
       if (e.pointerId !== id) return;
+      // the joystick is drawn at the UI scale: work in screen px, draw in local px
+      const s = uiScale();
+      const R = JOY_R * s;
       let dx = e.clientX - origin.x;
       let dy = e.clientY - origin.y;
       const d = Math.hypot(dx, dy);
-      if (d > JOY_R) {
-        dx = (dx / d) * JOY_R;
-        dy = (dy / d) * JOY_R;
+      if (d > R) {
+        dx = (dx / d) * R;
+        dy = (dy / d) * R;
       }
-      this.joyThumb.style.transform = `translate(${dx}px, ${dy}px)`;
-      this.cb.onJoystick(dx / JOY_R, dy / JOY_R);
+      this.joyThumb.style.transform = `translate(${dx / s}px, ${dy / s}px)`;
+      this.cb.onJoystick(dx / R, dy / R);
     });
     const end = (e: PointerEvent) => {
       if (e.pointerId !== id) return;

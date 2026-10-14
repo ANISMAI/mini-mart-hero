@@ -200,8 +200,18 @@ export interface ShelfRun {
  * Fills shelf runs with products, like a real shop: each product gets one block of facings
  * (rows side by side, a few deep), blocks follow each other along the boards.
  */
-export function fillShelf(parent: THREE.Object3D, items: CatalogItem[], runs: ShelfRun[]): void {
-  if (!items.length || !runs.length) return;
+/** Where a product sits on its shelf (parent-local): middle of its front facings, and which way they face. */
+export interface ProductSpot {
+  sku: string;
+  x: number;
+  y: number;
+  z: number;
+  face: 1 | -1;
+}
+
+export function fillShelf(parent: THREE.Object3D, items: CatalogItem[], runs: ShelfRun[]): ProductSpot[] {
+  const spots: ProductSpot[] = [];
+  if (!items.length || !runs.length) return spots;
   const lens = runs.map((r) => r.z1 - r.z0);
   const total = lens.reduce((a, b) => a + b, 0);
   const starts = lens.map((_, i) => lens.slice(0, i).reduce((a, b) => a + b, 0));
@@ -256,6 +266,11 @@ export function fillShelf(parent: THREE.Object3D, items: CatalogItem[], runs: Sh
 
     const matrices = layout(model.w, model.d + 0.01 / S, model.h, 0.012, 3);
     if (!matrices.length) return;
+    // pickup spot: middle of the front facings on the product's first board
+    const first = new THREE.Vector3().setFromMatrixPosition(matrices[0]);
+    const run = runs.find((r) => Math.abs(r.y - first.y) < 1e-4 && first.z >= r.z0 - 1e-4 && first.z <= r.z1 + 1e-4) ?? runs[0];
+    const zs = matrices.map((m) => new THREE.Vector3().setFromMatrixPosition(m)).filter((p) => Math.abs(p.y - first.y) < 1e-4).map((p) => p.z);
+    spots.push({ sku: item.id, x: run.xFront, y: run.y, z: (Math.min(...zs) + Math.max(...zs)) / 2, face: run.face });
     const placeholders: THREE.InstancedMesh[] = [];
     for (const part of model.parts) {
       const inst = new THREE.InstancedMesh(part.geo, materialFor(part.role, item), matrices.length);
@@ -285,6 +300,7 @@ export function fillShelf(parent: THREE.Object3D, items: CatalogItem[], runs: Sh
       for (const p of placeholders) p.visible = false;
     });
   });
+  return spots;
 }
 
 // ---------- product pictures (public/products/<iconKey>.webp) ----------

@@ -483,120 +483,7 @@ button {
   font-weight: 900;
 }
 
-/* full map */
-.map-card {
-  width: min(400px, 100%);
-}
-
-.map-body {
-  display: flex;
-  gap: 10px;
-  min-height: 0;
-  overflow: hidden;
-  padding: 12px 12px 0;
-}
-
-.map-plan {
-  position: relative;
-  flex: none;
-  height: min(48vh, 420px);
-  border: 3px solid var(--ink);
-  border-radius: 10px;
-  background: #f2ece2;
-}
-
-.map-zone {
-  position: absolute;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 1.5px solid rgba(35, 54, 79, 0.45);
-  border-radius: 4px;
-  background: var(--c);
-  cursor: pointer;
-}
-
-.map-zone.open {
-  opacity: 0.75;
-  border-style: dashed;
-}
-
-.map-zone-icon {
-  font-size: 15px;
-}
-
-.map-zone.selected {
-  z-index: 1;
-  border: 3px solid var(--ink);
-  box-shadow: 0 0 0 3px var(--gold);
-  opacity: 1;
-}
-
-.map-you {
-  position: absolute;
-  z-index: 2;
-  width: 12px;
-  height: 12px;
-  border: 2.5px solid #fff;
-  border-radius: 50%;
-  background: #e8333f;
-  transform: translate(-50%, -50%);
-  box-shadow: 0 0 0 4px rgba(232, 51, 63, 0.3);
-  pointer-events: none;
-}
-
-.map-list {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 5px;
-  overflow-y: auto;
-}
-
-.map-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 44px;
-  padding: 6px 8px;
-  border: 2px solid #e2dcef;
-  border-radius: 10px;
-  background: #fff;
-  font-size: 12.5px;
-  font-weight: 800;
-  text-align: left;
-  cursor: pointer;
-}
-
-.map-item.here {
-  border-color: #e8333f;
-}
-
-.map-item.selected {
-  border-color: var(--ink);
-  background: #fff6d6;
-}
-
-.map-detail {
-  margin: 10px 12px;
-  padding: 8px 12px;
-  border-radius: 12px;
-  background: #fff;
-  border: 2px solid #e2dcef;
-  font-size: 14px;
-  font-weight: 800;
-}
-
-.map-card > .btn {
-  flex: none;
-  margin: 0 12px 12px;
-}
-
 @media (orientation: landscape) and (max-height: 500px) {
-  .map-plan {
-    height: calc(100vh - 170px);
-  }
-
   .org-view {
     height: calc(100vh - 230px);
   }
@@ -759,4 +646,1826 @@ button {
   padding: 10px;
   border: 2px dashed #c5ccd6;
   border-radius: 12px;
+}
+
+/* ---------- Phase 2: customer & cashier ---------- */
+
+.hud-objective {
+  max-width: min(230px, 52vw);
+  padding: 8px 10px;
+  border: 2px solid var(--edge);
+  border-radius: 14px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.hud-obj-title {
+  margin-bottom: 4px;
+  color: #ffd84d;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.hud-obj-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 2px 0;
+}
+
+.hud-obj-name {
+  flex: 1;
+}
+
+.hud-obj-row.done {
+  color: #9df0c4;
+  text-decoration: line-through;
+}
+
+.co-speech {
+  position: relative;
+  padding: 12px 14px;
+  border: 2px solid #d5dde8;
+  border-radius: 16px;
+  background: #f7fafc;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.co-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.co-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 4px 10px;
+  border: 2px solid #e3e8ef;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.co-name {
+  flex: 1;
+  font-weight: 800;
+}
+
+.co-qty {
+  font-weight: 900;
+}
+
+.co-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  font-size: 28px;
+}
+
+.co-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.co-icon.big {
+  width: 72px;
+  height: 72px;
+  font-size: 52px;
+}
+
+.co-pos {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #103a5c;
+  color: #cfe8ff;
+  font-family: "Courier New", monospace;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.co-pos-row,
+.co-pos-total,
+.co-pay-line,
+.co-score-row,
+.co-score-total {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.co-pos-row.dim {
+  opacity: 0.5;
+}
+
+.co-pos-total {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed #5d86a8;
+  color: #ffd84d;
+  font-size: 16px;
+}
+
+.co-belt {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 14px;
+  background: repeating-linear-gradient(90deg, #3a4252 0 26px, #444d5f 26px 30px);
+}
+
+.co-card {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px;
+  border: 3px solid #fff;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.25);
+  cursor: grab;
+  font-size: 13px;
+  text-align: center;
+  user-select: none;
+}
+
+.co-card.dragging,
+.co-good.dragging {
+  position: relative;
+  z-index: 5;
+  cursor: grabbing;
+  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.3);
+}
+
+.co-price {
+  color: var(--green-dark);
+  font-weight: 900;
+}
+
+.co-barcode {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 1px;
+  height: 30px;
+  margin-top: 2px;
+}
+
+.co-barcode i {
+  display: block;
+  height: 20px;
+  background: #23262d;
+}
+
+.co-barcode small {
+  width: 100%;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+}
+
+.co-scanner {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 96px;
+  height: 120px;
+  border: 3px dashed #ff8a8a;
+  border-radius: 14px;
+  background: #23262d;
+  color: #ff8a8a;
+  font-weight: 900;
+}
+
+.co-scanner.hit {
+  border-color: #6dff9e;
+  background: #1d4a33;
+  color: #6dff9e;
+}
+
+.co-laser {
+  position: absolute;
+  inset: 50% 8px auto;
+  height: 3px;
+  background: #ff3b3b;
+  box-shadow: 0 0 10px #ff3b3b;
+  animation: laser 1.2s ease-in-out infinite;
+}
+
+@keyframes laser {
+  50% {
+    transform: translateY(-34px);
+  }
+}
+
+.co-scanner-label {
+  margin-top: 60px;
+  font-size: 13px;
+}
+
+.co-hint {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.co-hint.warn {
+  color: #b3202c;
+}
+
+.co-pay-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f4f7fb;
+}
+
+.co-pay-line {
+  font-size: 15px;
+}
+
+.co-pay-line.due strong {
+  color: #b3202c;
+  font-size: 18px;
+}
+
+.co-pay-line.given {
+  padding: 0 12px;
+  font-size: 16px;
+}
+
+.co-tray {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-height: 34px;
+  padding: 6px;
+  border: 2px dashed #d5dde8;
+  border-radius: 12px;
+}
+
+.co-denoms {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+
+.co-denom {
+  min-height: 48px;
+  border: 2px solid rgba(0, 0, 0, 0.18);
+  border-radius: 10px;
+  background: var(--c);
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.2);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+}
+
+.co-denom.coin {
+  border-radius: 999px;
+  color: #23364f;
+  text-shadow: none;
+}
+
+.co-denom.small {
+  min-height: 26px;
+  padding: 0 8px;
+  font-size: 11px;
+  box-shadow: none;
+  pointer-events: none;
+}
+
+.co-bag {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 10px 10px;
+  border: 3px solid #c98f5a;
+  border-radius: 10px 10px 22px 22px;
+  background: #f3dfc0;
+}
+
+.co-bag-handle {
+  position: absolute;
+  top: -16px;
+  left: 50%;
+  width: 90px;
+  height: 26px;
+  border: 4px solid #c98f5a;
+  border-bottom: none;
+  border-radius: 40px 40px 0 0;
+  transform: translateX(-50%);
+}
+
+.co-zone {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 74px;
+  padding: 22px 6px 6px;
+  border: 2px dashed rgba(0, 0, 0, 0.18);
+  border-radius: 10px;
+  position: relative;
+}
+
+.co-zone.top {
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.co-zone.bottom {
+  background: rgba(201, 143, 90, 0.25);
+}
+
+.co-zone.tray {
+  background: #f4f7fb;
+}
+
+.co-zone-label {
+  position: absolute;
+  top: 4px;
+  left: 8px;
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.co-good {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 96px;
+  min-height: 64px;
+  padding: 4px;
+  border: 2px solid #d5dde8;
+  border-radius: 12px;
+  background: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
+  user-select: none;
+  cursor: grab;
+}
+
+.co-good.sel {
+  border-color: var(--green-dark);
+  box-shadow: 0 0 0 3px rgba(47, 179, 138, 0.35);
+}
+
+.co-good .co-icon {
+  width: 34px;
+  height: 34px;
+  font-size: 24px;
+}
+
+.co-tag {
+  margin-top: 2px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+}
+
+.co-tag.heavy {
+  background: #ffe0c2;
+}
+
+.co-tag.fragile {
+  background: #ffe0ef;
+}
+
+.co-tag.normal {
+  background: #e3e8ef;
+}
+
+.co-stars {
+  font-size: 34px;
+  text-align: center;
+}
+
+.co-score {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.co-score-total {
+  padding-top: 8px;
+  border-top: 2px solid #e3e8ef;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+/* ---------- till panel: always fits, never scrolls ----------
+   Sizes follow the viewport (dvh with a vh fallback). Portrait stacks top to bottom; short or
+   landscape screens switch to two columns. Works from small phones to tablets and desktop. */
+
+.card.till {
+  width: min(560px, 100%);
+  height: min(100%, 860px);
+}
+
+.card.till .card-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  gap: clamp(6px, 1.4vh, 12px);
+  gap: clamp(6px, 1.4dvh, 12px);
+  padding: clamp(8px, 1.6vh, 14px) clamp(10px, 3vw, 16px);
+}
+
+.card.till .card-foot {
+  padding-bottom: clamp(8px, 1.6vh, 16px);
+}
+
+.card.till .co-speech {
+  flex: none;
+  padding: 8px 12px;
+  font-size: clamp(12px, 1.9vh, 15px);
+}
+
+.card.till .co-pos {
+  flex: none;
+  padding: 6px 12px;
+  font-size: clamp(11px, 1.7vh, 14px);
+}
+
+.card.till .co-pos-total {
+  margin-top: 4px;
+  padding-top: 4px;
+  font-size: clamp(13px, 2vh, 16px);
+}
+
+.card.till .co-hint {
+  flex: none;
+  font-size: clamp(12px, 1.8vh, 15px);
+}
+
+/* scan: the belt takes all the room that is left */
+.card.till .co-belt {
+  flex: 1 1 0;
+  min-height: 0;
+  align-items: stretch;
+  padding: clamp(8px, 1.6vh, 16px);
+}
+
+.card.till .co-card {
+  justify-content: center;
+  min-height: 0;
+  padding: clamp(6px, 1.2vh, 14px) 10px;
+  font-size: clamp(12px, 2vh, 16px);
+}
+
+.card.till .co-card .co-icon.big {
+  width: clamp(44px, 15vh, 140px);
+  height: clamp(44px, 15vh, 140px);
+  width: clamp(44px, 15dvh, 140px);
+  height: clamp(44px, 15dvh, 140px);
+  font-size: clamp(32px, 10vh, 96px);
+}
+
+.card.till .co-price {
+  font-size: clamp(14px, 2.4vh, 20px);
+}
+
+.card.till .co-barcode {
+  height: clamp(22px, 4.6vh, 44px);
+}
+
+.card.till .co-barcode i {
+  height: clamp(12px, 3vh, 30px);
+}
+
+.card.till .co-scanner {
+  width: clamp(82px, 24vw, 140px);
+  height: auto;
+}
+
+.card.till .co-scanner-label {
+  margin-top: 0;
+  align-self: end;
+  padding-bottom: 12px;
+}
+
+/* pay: money buttons and lines scale with the height */
+.card.till .co-pay-info {
+  flex: none;
+  gap: 2px;
+  padding: 6px 12px;
+}
+
+.card.till .co-pay-line {
+  font-size: clamp(12px, 2vh, 15px);
+}
+
+.card.till .co-pay-line.due strong {
+  font-size: clamp(14px, 2.4vh, 18px);
+}
+
+.card.till .co-tray {
+  flex: none;
+  min-height: 30px;
+  max-height: 64px;
+  overflow: hidden;
+}
+
+.card.till .co-denoms {
+  flex: 1 1 0;
+  min-height: 0;
+  grid-auto-rows: minmax(44px, 1fr);
+  max-height: 150px;
+}
+
+.card.till .co-denom {
+  min-height: 44px;
+  font-size: clamp(12px, 1.9vh, 15px);
+}
+
+/* pack: bag and tray share the height */
+.card.till .co-bag {
+  flex: 2 1 0;
+  min-height: 0;
+}
+
+.card.till .co-zone {
+  flex: 1 1 0;
+  min-height: 0;
+  align-content: flex-start;
+  overflow: hidden;
+}
+
+.card.till .co-zone.tray {
+  flex: 1 1 0;
+}
+
+.card.till .co-good {
+  width: clamp(84px, 24vw, 110px);
+  min-height: 0;
+}
+
+/* short screens (landscape phones, small tablets): two columns */
+@media (max-height: 560px), (orientation: landscape) and (max-height: 700px) {
+  .card.till {
+    width: min(900px, 100%);
+    height: 100%;
+  }
+
+  .card.till .card-head {
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+
+  .card.till .card-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+    grid-auto-rows: min-content;
+    align-content: stretch;
+  }
+
+  .card.till .step-scan {
+    grid-template-rows: auto auto 1fr;
+    grid-template-areas: "speech belt" "pos belt" "hint belt";
+  }
+
+  .card.till .step-scan .co-speech { grid-area: speech; }
+  .card.till .step-scan .co-pos { grid-area: pos; }
+  .card.till .step-scan .co-belt { grid-area: belt; }
+  .card.till .step-scan .co-hint { grid-area: hint; align-self: start; }
+
+  .card.till .step-pay {
+    grid-template-rows: auto auto auto auto 1fr;
+    grid-template-areas: "pos denoms" "info denoms" "given denoms" "tray denoms" "fb denoms";
+  }
+
+  .card.till .step-pay .co-pos { grid-area: pos; }
+  .card.till .step-pay .co-pay-info { grid-area: info; }
+  .card.till .step-pay .co-pay-line.given { grid-area: given; }
+  .card.till .step-pay .co-tray { grid-area: tray; }
+  .card.till .step-pay .co-denoms { grid-area: denoms; max-height: none; }
+  .card.till .step-pay > .co-hint { grid-area: fb; }
+
+  .card.till .step-pack {
+    grid-template-rows: 1fr auto;
+    grid-template-areas: "bag tray" "hint tray";
+  }
+
+  .card.till .step-pack .co-bag { grid-area: bag; }
+  .card.till .step-pack .co-zone.tray { grid-area: tray; }
+  .card.till .step-pack > .co-hint { grid-area: hint; }
+}
+
+/* draggable cards: no native image drag, no text selection, no long-press callout */
+.co-card img,
+.co-good img {
+  -webkit-user-drag: none;
+  user-select: none;
+  pointer-events: none;
+}
+
+.co-card,
+.co-good {
+  -webkit-touch-callout: none;
+}
+
+/* tablets and desktop: a wider till with bigger goods (still no scrolling) */
+@media (min-width: 700px) and (min-height: 600px) {
+  .card.till {
+    width: min(760px, 100%);
+  }
+
+  .card.till .co-card {
+    font-size: clamp(16px, 2.2vh, 22px);
+  }
+
+  .card.till .co-card .co-icon.big {
+    width: clamp(120px, 24vh, 200px);
+    height: clamp(120px, 24vh, 200px);
+    width: clamp(120px, 24dvh, 200px);
+    height: clamp(120px, 24dvh, 200px);
+    font-size: clamp(80px, 16vh, 140px);
+  }
+
+  .card.till .co-price {
+    font-size: clamp(20px, 3vh, 28px);
+  }
+
+  .card.till .co-barcode {
+    height: clamp(40px, 6vh, 60px);
+  }
+
+  .card.till .co-barcode i {
+    height: clamp(26px, 4.4vh, 42px);
+  }
+
+  .card.till .co-scanner {
+    width: clamp(140px, 22vw, 200px);
+  }
+
+  .card.till .co-good {
+    width: 130px;
+  }
+}
+
+/* tablets and desktop: the till fills most of the screen and all text scales with it */
+@media (min-width: 700px) and (min-height: 600px) {
+  .card.till {
+    width: min(92vw, 1100px);
+    height: min(94%, 900px);
+  }
+
+  .card.till .card-head h2 {
+    font-size: clamp(18px, 2.6vmin, 26px);
+  }
+
+  .card.till .card-icon {
+    font-size: clamp(22px, 3vmin, 30px);
+  }
+
+  .card.till .co-speech {
+    font-size: clamp(16px, 2.4vmin, 22px);
+    padding: 10px 16px;
+  }
+
+  .card.till .co-pos {
+    font-size: clamp(15px, 2.2vmin, 20px);
+    padding: 10px 16px;
+  }
+
+  .card.till .co-pos-total {
+    font-size: clamp(17px, 2.6vmin, 24px);
+  }
+
+  .card.till .co-hint {
+    font-size: clamp(16px, 2.3vmin, 21px);
+  }
+
+  .card.till .co-card {
+    font-size: clamp(18px, 2.8vmin, 26px);
+  }
+
+  .card.till .co-barcode small {
+    font-size: clamp(11px, 1.5vmin, 14px);
+  }
+
+  .card.till .co-scanner-label {
+    font-size: clamp(16px, 2.4vmin, 22px);
+  }
+
+  .card.till .co-pay-line {
+    font-size: clamp(16px, 2.4vmin, 22px);
+  }
+
+  .card.till .co-pay-line.due strong {
+    font-size: clamp(19px, 2.9vmin, 27px);
+  }
+
+  .card.till .co-denom {
+    min-height: 60px;
+    font-size: clamp(15px, 2.3vmin, 21px);
+  }
+
+  .card.till .co-denoms {
+    max-height: 200px;
+  }
+
+  .card.till .co-zone-label,
+  .card.till .co-good {
+    font-size: clamp(13px, 1.9vmin, 17px);
+  }
+
+  .card.till .co-good {
+    width: clamp(130px, 16vmin, 170px);
+  }
+
+  .card.till .co-good .co-icon {
+    width: 56px;
+    height: 56px;
+    font-size: 40px;
+  }
+
+  .card.till .card-foot .btn {
+    min-height: 56px;
+    font-size: clamp(16px, 2.3vmin, 21px);
+  }
+}
+
+/* ---------- one UI scale for phones, tablets and desktop ----------
+   --ui is set from the screen size (1 on phones, ~1.5–1.7 on tablets). HUD pieces scale from
+   the corner they are anchored to; panels use zoom so their content and hit areas scale too.
+   The till panel sizes itself from the viewport, so it is left out. */
+
+:root {
+  --ui: 1;
+}
+
+.hud-stats {
+  transform: scale(var(--ui));
+  transform-origin: top left;
+}
+
+.hud-minimap {
+  transform: scale(var(--ui));
+  transform-origin: top right;
+}
+
+.hud-interact {
+  transform: scale(var(--ui));
+  transform-origin: bottom right;
+}
+
+.hud-toast {
+  transform: translate(-50%, -12px) scale(var(--ui));
+  transform-origin: top center;
+}
+
+.hud-toast.show {
+  transform: translate(-50%, 0) scale(var(--ui));
+}
+
+.joy-base {
+  transform: scale(var(--ui));
+}
+
+.joy-zone {
+  width: calc(48% * var(--ui));
+  max-width: 60%;
+}
+
+.overlay .card:not(.till):not(.map-card) {
+  zoom: var(--ui);
+  max-height: calc(100% / var(--ui));
+  max-width: calc(100% / var(--ui));
+}
+
+/* money pictures on the change buttons, in the change tray and for the customer's note */
+.co-denom.has-img {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 4px;
+  border: 2px solid #e3e8ef;
+  background: #ffffff;
+  color: var(--ink);
+  text-shadow: none;
+}
+
+.co-denom.has-img img {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  max-height: 64px;
+  object-fit: contain;
+}
+
+.co-denom.coin.has-img img {
+  max-width: 52px;
+}
+
+.co-denom-label {
+  font-size: 0.8em;
+  line-height: 1;
+}
+
+.co-denom.small.has-img {
+  width: 56px;
+  min-height: 34px;
+  padding: 2px;
+  border: none;
+  background: transparent;
+}
+
+.co-denom.small.has-img img {
+  max-height: 30px;
+}
+
+.co-denom.small.has-img .co-denom-label {
+  display: none;
+}
+
+.co-paid-note {
+  flex: 1;
+  display: flex;
+  justify-content: flex-end;
+  font-weight: 900;
+}
+
+.co-paid-note img {
+  height: clamp(28px, 5vh, 48px);
+  object-fit: contain;
+}
+
+/* money pictures: fixed sizes so a 640 px note image can never blow up the layout */
+.card .co-paid-note img {
+  display: block;
+  width: auto;
+  height: 40px;
+  max-width: 90px;
+  object-fit: contain;
+}
+
+.card .co-denoms {
+  grid-auto-rows: 64px;
+  max-height: none;
+  flex: none;
+}
+
+.card .co-denoms .co-denom {
+  height: 64px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.card .co-denoms .co-denom.has-img img {
+  display: block;
+  flex: none;
+  width: auto;
+  height: 40px;
+  max-width: 100%;
+  max-height: none;
+  object-fit: contain;
+}
+
+.card .co-tray .co-denom.small.has-img img {
+  display: block;
+  width: auto;
+  height: 26px;
+  max-width: 52px;
+  object-fit: contain;
+}
+
+@media (min-width: 700px) and (min-height: 600px) {
+  .card .co-denoms {
+    grid-auto-rows: 76px;
+  }
+
+  .card .co-denoms .co-denom {
+    height: 76px;
+  }
+
+  .card .co-denoms .co-denom.has-img img {
+    height: 50px;
+  }
+
+  .card .co-paid-note img {
+    height: 48px;
+    max-width: 110px;
+  }
+}
+
+/* notes and coins sit together at the top of their area (no stretched gap between the rows) */
+.card .co-denoms {
+  align-content: start;
+}
+
+/* money buttons: just the note / coin picture, no button frame (label kept for screen readers) */
+.card .co-denoms .co-denom.has-img {
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  transition: transform 0.08s ease;
+}
+
+.card .co-denoms .co-denom.has-img img {
+  height: 56px;
+  filter: drop-shadow(0 3px 2px rgba(0, 0, 0, 0.25));
+}
+
+.card .co-denoms .co-denom.has-img .co-denom-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.card .co-denoms .co-denom.has-img:active {
+  transform: scale(0.92);
+}
+
+.card .co-denoms .co-denom.has-img:focus-visible {
+  outline: 3px solid var(--green);
+  outline-offset: 2px;
+}
+
+@media (min-width: 700px) and (min-height: 600px) {
+  .card .co-denoms .co-denom.has-img img {
+    height: 68px;
+  }
+}
+
+/* keep the label under each money picture */
+.card .co-denoms .co-denom.has-img .co-denom-label {
+  position: static;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  clip: auto;
+  color: var(--ink);
+  font-size: 0.85em;
+  font-weight: 900;
+}
+
+.card .co-denoms .co-denom.has-img img {
+  height: 48px;
+}
+
+@media (min-width: 700px) and (min-height: 600px) {
+  .card .co-denoms .co-denom.has-img img {
+    height: 58px;
+  }
+}
+
+/* ---------- payment: receipt (left) + cash drawer (right) ---------- */
+
+.card.till .step-cash {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+  gap: clamp(8px, 1.6vmin, 16px);
+  align-items: stretch;
+}
+
+/* narrow portrait phones: receipt on top, drawer below */
+@media (max-width: 560px) and (orientation: portrait) {
+  .card.till .step-cash {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+}
+
+.co-receipt {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  overflow: hidden;
+  padding: 10px 12px 14px;
+  border-radius: 6px 6px 0 0;
+  background:
+    linear-gradient(135deg, transparent 6px, #fffdf6 0) bottom left / 12px 12px repeat-x,
+    linear-gradient(225deg, transparent 6px, #fffdf6 0) bottom left / 12px 12px repeat-x,
+    linear-gradient(#fffdf6, #fffdf6) top / 100% calc(100% - 10px) no-repeat;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12);
+  color: #2b2f38;
+  font-family: "Courier New", monospace;
+  font-size: clamp(11px, 1.8vmin, 16px);
+  font-weight: 700;
+}
+
+.co-r-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-bottom: 4px;
+  border-bottom: 2px dashed #c9ccd3;
+}
+
+.co-r-head strong {
+  font-size: 1.1em;
+}
+
+.co-r-items {
+  padding: 4px 0;
+  border-bottom: 2px dashed #c9ccd3;
+}
+
+.co-r-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 1.6em;
+}
+
+.co-r-row.total {
+  font-size: 1.15em;
+}
+
+.co-r-row.due strong {
+  color: #b3202c;
+  font-size: 1.25em;
+}
+
+.co-r-row.given {
+  padding-top: 4px;
+  border-top: 2px dashed #c9ccd3;
+  color: #1d7a55;
+  font-size: 1.15em;
+}
+
+.co-r-paid {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.co-receipt .co-paid-note {
+  flex: none;
+}
+
+.co-receipt .co-tray {
+  min-height: 34px;
+  border-color: #d9dce2;
+}
+
+.co-receipt .co-hint {
+  font-family: Nunito, "Segoe UI", sans-serif;
+}
+
+/* the drawer: dark box, note compartments at the back, coin cups in front */
+.co-drawer {
+  position: relative;
+  display: grid;
+  grid-template-rows: 1.15fr 1fr;
+  gap: 8px;
+  min-height: 0;
+  padding: 12px 12px 22px;
+  border-radius: 10px;
+  background: linear-gradient(#3a3f4a, #23262d);
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.12), 0 6px 12px rgba(0, 0, 0, 0.3);
+}
+
+.co-drawer-row {
+  display: grid;
+  gap: 6px;
+  min-height: 0;
+}
+
+.co-drawer-row.notes {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.co-drawer-row.coins {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.co-slot {
+  display: flex;
+  align-items: stretch;
+  min-height: 64px;
+  border-radius: 6px;
+  background: linear-gradient(#15171c, #2b2f38);
+  box-shadow: inset 0 4px 8px rgba(0, 0, 0, 0.7);
+}
+
+.co-drawer-row.coins .co-slot {
+  border-radius: 14px;
+}
+
+.co-drawer-lock {
+  position: absolute;
+  right: 14px;
+  bottom: 6px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: radial-gradient(#d8dde6, #7d8ba0);
+}
+
+.co-drawer .co-denom,
+.co-drawer .co-denom.has-img {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+  padding: 4px 2px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  box-shadow: none;
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  transition: transform 0.08s ease;
+}
+
+.co-drawer .co-denom:not(.has-img) {
+  margin: 6px;
+  background: var(--c);
+}
+
+.co-drawer .co-denom.has-img img {
+  display: block;
+  flex: none;
+  width: auto;
+  height: clamp(30px, 6vmin, 56px);
+  max-width: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5));
+}
+
+.co-drawer .co-denom-label {
+  font-size: clamp(10px, 1.6vmin, 14px);
+  font-weight: 900;
+}
+
+.co-drawer .co-denom:active {
+  transform: scale(0.92);
+}
+
+.co-drawer .co-denom:focus-visible {
+  outline: 3px solid #ffd84d;
+  outline-offset: -3px;
+}
+
+/* portrait phones: the receipt takes only what it needs, the drawer gets the rest */
+@media (max-width: 560px) and (orientation: portrait) {
+  .card.till .step-cash {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .card.till .step-cash .co-drawer .co-denom.has-img img {
+    height: clamp(30px, 7vh, 56px);
+  }
+}
+
+/* full drawer: piles of notes lying along each compartment, heaps of coins in the cups */
+.co-slot {
+  position: relative;
+  overflow: hidden;
+  container-type: size;
+}
+
+.co-pile {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.co-pile img {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.55));
+}
+
+/* notes: rotated to lie lengthwise in the tall compartment, slightly fanned */
+.co-slot.note .co-pile img {
+  width: 86cqh;
+  max-height: 96cqw;
+  object-fit: contain;
+  transform: translate(-50%, -50%) rotate(90deg);
+}
+
+.co-slot.note .co-pile img:nth-child(1) { transform: translate(-50%, -54%) rotate(87deg); }
+.co-slot.note .co-pile img:nth-child(2) { transform: translate(-48%, -52%) rotate(92deg); }
+.co-slot.note .co-pile img:nth-child(3) { transform: translate(-52%, -49%) rotate(89deg); }
+.co-slot.note .co-pile img:nth-child(4) { transform: translate(-50%, -47%) rotate(91deg); }
+
+/* coins: a heap scattered over the cup */
+.co-slot.coin .co-pile img {
+  width: 34cqmin;
+  height: 34cqmin;
+}
+
+.co-slot.coin .co-pile img:nth-child(1) { transform: translate(-130%, -150%) rotate(10deg); }
+.co-slot.coin .co-pile img:nth-child(2) { transform: translate(-40%, -165%) rotate(-20deg); }
+.co-slot.coin .co-pile img:nth-child(3) { transform: translate(40%, -140%) rotate(35deg); }
+.co-slot.coin .co-pile img:nth-child(4) { transform: translate(-115%, -85%) rotate(-5deg); }
+.co-slot.coin .co-pile img:nth-child(5) { transform: translate(-20%, -95%) rotate(25deg); }
+.co-slot.coin .co-pile img:nth-child(6) { transform: translate(55%, -70%) rotate(-30deg); }
+.co-slot.coin .co-pile img:nth-child(7) { transform: translate(-125%, -20%) rotate(15deg); }
+.co-slot.coin .co-pile img:nth-child(8) { transform: translate(-50%, -35%) rotate(-12deg); }
+.co-slot.coin .co-pile img:nth-child(9) { transform: translate(35%, -5%) rotate(40deg); }
+.co-slot.coin .co-pile img:nth-child(10) { transform: translate(-90%, 35%) rotate(-25deg); }
+.co-slot.coin .co-pile img:nth-child(11) { transform: translate(5%, 30%) rotate(8deg); }
+
+/* the whole compartment is the button; only its label shows, at the bottom */
+.co-drawer .co-denom,
+.co-drawer .co-denom.has-img {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 0 0 4px;
+}
+
+.co-drawer .co-denom.has-img img {
+  display: none;
+}
+
+.co-drawer .co-denom-label {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(20, 22, 28, 0.75);
+}
+
+.co-drawer .co-denom:active ~ .co-pile,
+.co-slot:active .co-pile {
+  transform: scale(0.95);
+}
+
+/* ---------- store map: floor plan + list, sized from the screen, never scrolls ---------- */
+
+.card.map-card {
+  width: min(94vw, 1000px);
+  height: min(94%, 900px);
+}
+
+.map-body {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: clamp(8px, 1.6vmin, 16px);
+  min-height: 0;
+  padding: clamp(8px, 1.6vmin, 16px);
+}
+
+@media (orientation: portrait) {
+  .map-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+}
+
+.map-plan-wrap {
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  container-type: size;
+}
+
+.map-plan {
+  position: relative;
+  /* the largest 24:30 rectangle that fits the wrapper */
+  width: min(100cqw, calc(100cqh * 24 / 30));
+  aspect-ratio: 24 / 30;
+  border: 4px solid #4d6a8f;
+  border-radius: 10px;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 11px, rgba(0, 0, 0, 0.04) 11px 12px),
+    repeating-linear-gradient(90deg, transparent 0 11px, rgba(0, 0, 0, 0.04) 11px 12px),
+    #f6efe3;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+}
+
+.map-zone {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 2px solid rgba(35, 54, 79, 0.35);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--c) 70%, white);
+  container-type: size;
+  cursor: pointer;
+  font: inherit;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.map-zone.open {
+  border-style: dashed;
+  border-color: rgba(35, 54, 79, 0.2);
+  background: color-mix(in srgb, var(--c) 30%, transparent);
+}
+
+.map-zone.room {
+  z-index: 1;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.5);
+}
+
+.map-zone-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  max-width: 96%;
+  color: #23364f;
+  font-weight: 900;
+  line-height: 1.05;
+  text-align: center;
+  pointer-events: none;
+}
+
+.map-zone-icon {
+  font-size: clamp(10px, 34cqmin, 26px);
+}
+
+.map-zone-name {
+  font-size: clamp(7px, 13cqmin, 13px);
+}
+
+/* too small for a name: icon only */
+@container (max-height: 34px) {
+  .map-zone-name {
+    display: none;
+  }
+}
+
+@container (max-width: 44px) {
+  .map-zone-name {
+    display: none;
+  }
+}
+
+.map-zone.selected {
+  z-index: 3;
+  border-color: #2fb38a;
+  box-shadow: 0 0 0 3px #2fb38a, 0 6px 14px rgba(0, 0, 0, 0.25);
+}
+
+.map-zone.here {
+  border-color: #f2a51e;
+}
+
+.map-fixture {
+  position: absolute;
+  z-index: 2;
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+.map-fixture.shelf {
+  background: #8c97a8;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35);
+}
+
+.map-fixture.cooler {
+  background: #3a4252;
+  box-shadow: inset -3px 0 0 #9fd8f2;
+}
+
+.map-fixture.till {
+  background: #d9a86c;
+  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.15);
+}
+
+.map-door {
+  position: absolute;
+  bottom: -4px;
+  z-index: 3;
+  height: 8px;
+  border-radius: 4px;
+  background: #2fb38a;
+  color: #1d7a55;
+  font-size: clamp(8px, 1.4vmin, 12px);
+  font-weight: 900;
+  text-align: center;
+  white-space: nowrap;
+  line-height: 30px;
+  pointer-events: none;
+}
+
+.map-you {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.map-you-dot {
+  width: 16px;
+  height: 16px;
+  border: 3px solid #ffffff;
+  border-radius: 50%;
+  background: #e8333f;
+  box-shadow: 0 0 0 0 rgba(232, 51, 63, 0.6);
+  animation: you-pulse 1.4s ease-out infinite;
+}
+
+.map-you-label {
+  margin-top: 2px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #e8333f;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+@keyframes you-pulse {
+  70% {
+    box-shadow: 0 0 0 12px rgba(232, 51, 63, 0);
+  }
+}
+
+.map-side {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(6px, 1.2vmin, 12px);
+  min-height: 0;
+}
+
+.map-list {
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(auto-fill, minmax(clamp(96px, 16vmin, 150px), 1fr));
+  grid-auto-rows: minmax(36px, auto);
+  align-content: start;
+  gap: 6px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.map-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 4px 8px;
+  border: 2px solid #e3e8ef;
+  border-left: 6px solid var(--c);
+  border-radius: 10px;
+  background: #ffffff;
+  color: #23364f;
+  font: inherit;
+  font-size: clamp(11px, 1.7vmin, 15px);
+  font-weight: 800;
+  text-align: left;
+}
+
+.map-item-icon {
+  font-size: 1.2em;
+}
+
+.map-item-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.map-item.here {
+  background: #fff6e0;
+}
+
+.map-item.selected {
+  border-color: #2fb38a;
+  background: #e6f8f0;
+  box-shadow: 0 0 0 2px #2fb38a;
+}
+
+.map-detail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 2px solid #e3e8ef;
+  border-radius: 12px;
+  background: #f7fafc;
+  color: #23364f;
+  font-size: clamp(13px, 1.9vmin, 17px);
+  font-weight: 800;
+}
+
+.map-detail-icon {
+  font-size: 1.4em;
+}
+
+.map-go {
+  flex: none;
+  min-height: 52px;
+}
+
+/* portrait phones: compact list so plan + list + button always fit */
+@media (orientation: portrait) {
+  .map-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-auto-rows: 34px;
+    flex: none;
+  }
+
+  .map-item {
+    min-height: 34px;
+    padding: 2px 6px;
+    font-size: 11px;
+  }
+}
+
+/* aisle labels sit above the drawn shelves, on a soft pill */
+.map-zone.open .map-zone-label {
+  position: relative;
+  z-index: 3;
+  padding: 2px 5px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+/* entrance marker: a pill inside the plan's bottom edge */
+.map-door {
+  bottom: 3px;
+  height: auto;
+  padding: 2px 4px;
+  border-radius: 999px;
+  color: #ffffff;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* short screens (landscape phones): compact header, list and button so all 15 places fit */
+@media (max-height: 560px) {
+  .card.map-card {
+    width: min(98vw, 1000px);
+    height: 100%;
+  }
+
+  .map-card .card-head {
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+
+  .map-card .card-head h2 {
+    font-size: 15px;
+  }
+
+  .map-card .card-x {
+    width: 36px;
+    height: 36px;
+  }
+
+  .map-body {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+    gap: 8px;
+    padding: 6px 8px 8px;
+  }
+
+  .map-side {
+    gap: 5px;
+  }
+
+  .map-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-auto-rows: 30px;
+    gap: 4px;
+  }
+
+  .map-item {
+    min-height: 30px;
+    padding: 2px 6px;
+    border-left-width: 4px;
+    font-size: 11px;
+  }
+
+  .map-detail {
+    min-height: 34px;
+    padding: 4px 10px;
+    font-size: 12px;
+  }
+
+  .map-go {
+    min-height: 40px;
+  }
+}
+
+/* change tray: one picture per denomination with a ×n badge, always one tidy row */
+.co-receipt .co-tray {
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.co-tray-item {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+
+.co-tray-count {
+  position: absolute;
+  top: -6px;
+  right: -8px;
+  min-width: 22px;
+  padding: 1px 5px;
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+  background: #e8333f;
+  color: #ffffff;
+  font-family: Nunito, "Segoe UI", sans-serif;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.3;
+  text-align: center;
+}
+
+/* change tray: snug pictures (no fixed 56 px boxes), even small gaps */
+.co-receipt .co-tray {
+  gap: 10px;
+  padding: 6px 10px;
+}
+
+.card .co-tray .co-denom.small.has-img {
+  width: auto;
+  min-height: 0;
+  height: auto;
+  padding: 0;
+}
+
+.card .co-tray .co-denom.small.has-img img {
+  height: 24px;
+  max-width: 44px;
+}
+
+/* ---------- order result ---------- */
+
+.card.till .step-result {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: none;
+  grid-template-areas: none;
+  align-content: center;
+  justify-items: center;
+  gap: clamp(10px, 2vmin, 20px);
+}
+
+@media (min-aspect-ratio: 1/1) {
+  .card.till .step-result {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    align-items: center;
+  }
+}
+
+.res-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(6px, 1.4vmin, 12px);
+}
+
+.res-ring {
+  display: grid;
+  place-items: center;
+  width: clamp(110px, 22vmin, 170px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: conic-gradient(#2fb38a calc(var(--p) * 1%), #e3e8ef 0);
+}
+
+.res-ring-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 78%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #23364f;
+  line-height: 1;
+}
+
+.res-ring-inner strong {
+  font-size: clamp(34px, 7vmin, 56px);
+  font-weight: 900;
+}
+
+.res-ring-inner span {
+  color: var(--ink-soft);
+  font-size: clamp(12px, 1.8vmin, 16px);
+  font-weight: 800;
+}
+
+.res-stars {
+  display: flex;
+  gap: 6px;
+}
+
+.res-star {
+  width: clamp(30px, 5.5vmin, 44px);
+  height: clamp(30px, 5.5vmin, 44px);
+  fill: #dfe5ec;
+  stroke: #c5ccd6;
+  stroke-width: 2.5;
+}
+
+.res-star.on {
+  fill: #ffd84d;
+  stroke: #e0a800;
+}
+
+.res-thanks {
+  margin: 0;
+  color: #23364f;
+  font-size: clamp(14px, 2.2vmin, 19px);
+  font-weight: 900;
+}
+
+.res-side {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(8px, 1.6vmin, 14px);
+  width: min(100%, 440px);
+}
+
+.res-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 2px solid #e3e8ef;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.res-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 10px;
+  color: #23364f;
+  font-size: clamp(13px, 2vmin, 17px);
+  font-weight: 800;
+}
+
+.res-bar {
+  grid-column: 1 / -1;
+  height: 8px;
+  border-radius: 999px;
+  background: #eef1f5;
+  overflow: hidden;
+}
+
+.res-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #2fb38a, #5fd3b0);
+}
+
+.res-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.res-chip {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #23364f;
+  font-size: clamp(12px, 1.9vmin, 16px);
+  font-weight: 900;
+}
+
+.res-chip.coin {
+  background: #fff4d1;
+}
+
+.res-next {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: clamp(12px, 1.8vmin, 15px);
+  font-weight: 700;
 }

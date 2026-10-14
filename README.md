@@ -123,6 +123,38 @@ circuit and is never affected. Events never stack and the technician can be call
 `?dev` to the URL to get developer buttons on the cabinet panel: trigger a test event, resolve
 now, **Reset Demo Event**.
 
+## Phase 2: customer & cashier
+
+One complete customer transaction, end to end, on top of Phase 1 and 1.5 (nothing removed). Like
+a real kedai runcit, **customers shop by themselves**; the player runs the till.
+
+1. **Customer shops:** a customer walks in with a red basket, follows the open lanes to each
+   product on their list (1 to 4 items, only products unlocked at your level and actually on a
+   shelf), stops to take it (the basket fills, a toast says what they took), then queues at the
+   customer side of the till. Templates: express, ordinary, family. Markers are
+   `CUSTOMER_MARKERS` in `src/world/CustomerNPC.ts`; if the customer gets stuck it visibly
+   "poofs" to its next marker. The HUD card (top-left) shows their list being filled.
+2. **Till:** stand on the cashier side and Interact → till screens over the 3D store (walking
+   paused, camera kept): **scan** by swiping each item card onto the scanner (beep, once per unit,
+   misses only cost a little, Restart scan) → **cash**: the customer pays with a note; next to
+   the payment receipt you take the exact change from the cash drawer (RM50, 20, 10, 5, 1 notes;
+   50, 20, 10, 5 sen coins; Undo, Clear, Confirm; integer sen).
+3. **Done:** exact change completes the sale: the result panel shows in the till, the customer
+   leaves and the next one arrives a few seconds later. (Bag packing is left for a later phase.)
+
+Scoring (per order, once): scan 35, exact change 50, customer served 15. Mistakes only lower
+that stage (to half at most) and can always be retried. Best score, total and coins are saved
+under `mini-market-hero-orders-v2`; a refresh while the customer shops or mid-till brings them
+back waiting at the till with a full basket; a corrupt save starts clean. Rewards are keyed by
+order id, so they can't repeat.
+
+Files: `src/game/OrderService.ts` (guarded state machine
+`idle > shopping > waiting > scanning > paying > handoff > complete`),
+`src/ui/Checkout.ts` (till screens), `src/world/CustomerNPC.ts` (shopping customer, routes,
+basket), `src/data/strings.ts` (BM/EN dialogue table), `packClass` in `src/data/catalog.ts`.
+Product spots come from the shelf filler (`fillShelf` returns them). `?dev` brings the first
+customer in after 1 s.
+
 ## Replacing models and textures
 
 Everything is built from simple primitives in `world/StoreBuilder.ts` (one function per piece:
@@ -170,8 +202,20 @@ this environment at the time of writing).
 - [ ] On a device: switches / panels in portrait, shade and fixture visuals, AC airflow, outage
       flow end to end, reload.
 
+### Phase 2 checks
+
+- [x] Order logic (Node script): guards with no customer; one customer at a time; till closed
+      while they shop; customer only takes listed units; each unit scans once; tender always
+      covers the total; wrong change rejected with the exact difference; exact change accepted;
+      exact change completes the order; perfect order = 100, rewarded once;
+      reload while shopping → waiting at the till with a full basket; bad save → idle.
+- [x] The customer's routes from the entrance to all 44 products and on to the till are clear of
+      every collision box (radius 0.3).
+- [ ] On a device: watching a customer shop; swipe-to-scan, the cash drawer on
+      a narrow phone; full transaction end to end; refresh mid-order.
+
 ## Out of scope (later phases)
 
-Customers with shopping requests, scanning, payment and change (Phase 2); restocking, shelf
-organizer and bag packing with scoring (Phase 3); shift results, XP, leaderboards (Phase 4);
-production polish and app integration (Phase 5).
+Inventory restocking, the full 2D shelf organizer with zoom and advanced packing (Phase 3);
+shift results, XP, leaderboards (Phase 4); production polish and app integration (Phase 5).
+Card / e-wallet payment, multiple simultaneous customers and rush hours are also later.

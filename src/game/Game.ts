@@ -4,7 +4,7 @@ import AmbientCustomer from "../world/AmbientCustomer";
 import PlayerController from "../player/PlayerController";
 import ThirdPersonCamera from "../player/ThirdPersonCamera";
 import { CUSTOMER_LOOKS } from "../player/Avatar";
-import HUD from "../ui/HUD";
+import HUD, { updateUiScale } from "../ui/HUD";
 import MiniMap from "../ui/MiniMap";
 import FullMap from "../ui/FullMap";
 import Overlays from "../ui/Overlays";
@@ -14,6 +14,11 @@ import UtilityService from "./Utilities";
 import UtilityVisuals from "../world/UtilityVisuals";
 import { getZone, zoneAt } from "../data/utilities";
 import { buildExterior, type Exterior } from "../world/Exterior";
+import OrderService from "./OrderService";
+import Checkout from "../ui/Checkout";
+import CustomerNPC from "../world/CustomerNPC";
+import { CATALOG, getItem } from "../data/catalog";
+import { t } from "../data/strings";
 
 /**
  * StoreScene + game loop. The render loop (Three.js) and the DOM task overlays are separate;
@@ -78,10 +83,17 @@ export default class Game {
   private saveTimer = 0;
   private fpsTime = 0;
   private fpsFrames = 0;
+  /** Seconds spent locked in task mode with no panel open (watchdog). */
+  private orphanTask = 0;
   private pixelRatio: number;
   private utils = new UtilityService();
   private utilVisuals: UtilityVisuals;
   private exterior: Exterior;
+  // Phase 2: one customer transaction at a time
+  private orders = new OrderService();
+  private checkout!: Checkout;
+  private npc: CustomerNPC;
+  private nextCustomerIn = 4;
   /** Scene lights and their full intensities (dimmed while the player's zone is dark). */
   private lights: { light: THREE.Light; full: number }[] = [];
   private dim = 1;
@@ -122,6 +134,8 @@ export default class Game {
     this.exterior = buildExterior();
     this.scene.add(this.exterior.group);
     this.store.occluders.push(...this.exterior.occluders);
+    this.npc = new CustomerNPC(this.store.collisions);
+    this.scene.add(this.npc.root);
     this.scene.fog = new THREE.Fog(0xcfe8f5, 35, 78); // fades out before the camera far plane (80)
 
     this.player = new PlayerController(this.store.collisions);
@@ -163,6 +177,23 @@ export default class Game {
       this.updateAlert();
     });
     this.updateAlert();
+    // orders: till screens, HUD objective and the customer's bubble follow the service
+    this.checkout = new Checkout(this.overlays, this.orders);
+    this.checkout.beep = () => this.beep();
+    this.orders.subscribe(() => this.refreshOrderUI());
+    this.npc.onArrived = () => {
+      this.orders.arrivedAtTill();
+      this.refreshOrderUI();
+    };
+    this.npc.onGone = () => {
+      this.orders.clear();
+      this.nextCustomerIn = 8;
+      this.refreshOrderUI();
+    };
+    const o = this.orders.order;
+    if (o && o.state !== "complete") this.npc.placeAtDesk(o.look, this.orders.unitCount()); // restored mid-order
+    if (this.dev) this.nextCustomerIn = 1;
+    this.refreshOrderUI();
     this.fade = document.createElement("div");
     this.fade.className = "fade show";
     uiRoot.appendChild(this.fade);
@@ -272,6 +303,11 @@ export default class Game {
   private interact(): void {
     if (this.taskMode || !this.near) return;
     const it = this.near;
+    if (it.kind === "cashier" && !["waiting", "scanning", "paying", "handoff"].includes(this.orders.state)) {
+      const s = this.orders.state;
+      this.hud.showToast(s === "shopping" ? (this.npc.headingToTill ? t("coming_to_till") : t("still_shopping")) : t("no_customer"), 2600);
+      return;
+    }
     if (it.kind === "switch" && it.zone) {
       // wall switch: instant, no panel
       const on = this.utils.toggleZone(it.zone);
@@ -282,7 +318,27 @@ export default class Game {
     }
     this.enterTaskMode();
     const done = () => this.exitTaskMode();
-    if (it.kind === "cashier") this.overlays.cashier(done);
+    try {
+      this.openTask(it, done);
+    } catch (err) {
+      // never leave the player frozen: give control back and say what went wrong
+      console.error(err);
+      this.overlays.close();
+      done();
+      this.hud.showToast(`⚠️ Ralat: ${(err as Error).message}`, 5000);
+    }
+  }
+
+  /** Opens the panel for an interact point (control returns through `done`). */
+  private openTask(it: Interactable, done: () => void): void {
+    if (it.kind === "cashier") {
+      // scan -> pay; exact change finishes the order (the result shows in the till panel)
+      this.orders.startCheckout();
+      this.checkout.till(() => {
+        done();
+        if (this.orders.state === "complete") this.npc.leave();
+      });
+    }
     else if (it.kind === "organizer") this.overlays.organizer(it.shelf!, this.level, done);
     else if (it.kind === "aircon") this.overlays.aircon(this.utils, done);
     else if (it.kind === "lights") this.overlays.lights(this.utils, done);
@@ -294,6 +350,41 @@ export default class Game {
   private updateAlert(): void {
     const s = this.utils.event.state;
     this.hud.setAlert(s === "warning" ? "⚠️ Elektrik" : s === "outage" ? "⚡ Gangguan" : s === "technician" ? "🔧 Pembaikan" : null);
+  }
+
+  /** Phase 2 HUD objective and the customer's bubble. */
+  private refreshOrderUI(): void {
+    const s = this.orders.state;
+    const tillStates = ["scanning", "paying", "handoff"];
+    let title: string | null = null;
+    if (s === "shopping") title = t("objective_shopping_plain");
+    else if (s === "waiting") title = t("objective_till");
+    else if (tillStates.includes(s)) title = t("objective_at_till");
+    // just the status line: what the customer buys shows up at the till when scanning
+    this.hud.setObjective(title ? { title } : null);
+    if (this.npc.state !== "leaving")
+      this.npc.setBubble(s === "shopping" ? "🛒" : s === "waiting" ? "🧾" : tillStates.includes(s) ? "💵" : null);
+    if (tillStates.includes(s)) this.npc.emptyBasket(); // goods are on the counter now
+    this.hud.setCoins(this.orders.stats.coins);
+  }
+
+  /** Scanner / till beep. */
+  private beep(): void {
+    try {
+      this.audio ??= new AudioContext();
+      const t0 = this.audio.currentTime;
+      const osc = this.audio.createOscillator();
+      const gain = this.audio.createGain();
+      osc.type = "square";
+      osc.frequency.value = 1250;
+      gain.gain.setValueAtTime(0.05, t0);
+      gain.gain.setValueAtTime(0, t0 + 0.09);
+      osc.connect(gain).connect(this.audio.destination);
+      osc.start(t0);
+      osc.stop(t0 + 0.1);
+    } catch {
+      // no audio available
+    }
   }
 
   /** Short switch click (Web Audio, no asset). */
@@ -319,6 +410,7 @@ export default class Game {
   private resize(): void {
     const w = window.innerWidth;
     const h = window.innerHeight;
+    updateUiScale();
     this.renderer.setSize(w, h);
     this.cam.camera.aspect = w / h;
     // portrait phones: a slightly wider view so aisles fit
@@ -331,6 +423,28 @@ export default class Game {
     if (!this.taskMode) this.player.update(dt, this.cam);
     else this.player.avatar.animate(dt, 0);
     for (const c of this.customers) c.update(dt);
+    // Phase 2: the next customer walks in a little while after the last one left
+    this.npc.update(dt);
+    // safety net: a customer standing at the till is never left marked as still shopping
+    if (this.npc.state === "waiting" && this.orders.state === "shopping") this.orders.arrivedAtTill();
+    if (this.orders.state === "idle" && this.npc.state === "hidden") {
+      this.nextCustomerIn -= dt;
+      if (this.nextCustomerIn <= 0) {
+        this.nextCustomerIn = 8;
+        const available = CATALOG.filter((p) => p.unlockLevel <= this.level && this.store.productSpots.has(p.id));
+        if (this.orders.spawn(available, 3)) {
+          const stops = this.orders.order!.lines.map((l) => ({
+            spot: this.store.productSpots.get(l.productId)!,
+            onPick: () => {
+              for (let i = 0; i < l.quantity; i++) this.orders.customerPicked(l.productId);
+              this.hud.showToast(t("customer_picked", { name: getItem(l.productId)!.name }));
+            },
+          }));
+          this.npc.shop(this.orders.order!.look, stops);
+          this.refreshOrderUI();
+        }
+      }
+    }
     this.exterior.tick(dt);
     this.cam.update(this.player.position, dt);
 
@@ -366,7 +480,8 @@ export default class Game {
 
     // entrance: automatic sliding doors open for the player or a customer nearby
     const e = this.store.entrance;
-    const someoneNear = [p, ...this.customers.map((c) => c.avatar.root.position)].some((q) => Math.hypot(q.x - e.x, q.z - e.z) < 2.8);
+    const walkers = [p, ...this.customers.map((c) => c.avatar.root.position), ...(this.npc.state !== "hidden" ? [this.npc.position] : [])];
+    const someoneNear = walkers.some((q) => Math.hypot(q.x - e.x, q.z - e.z) < 2.8);
     e.open += ((someoneNear ? 1 : 0) - e.open) * Math.min(1, dt * 4);
     for (const l of e.leaves) l.leaf.position.x = l.closedX + l.dir * e.open * e.travel;
 
@@ -408,6 +523,15 @@ export default class Game {
 
     this.miniMap.draw(p.x, p.z, this.player.facing, this.room);
     this.renderer.render(this.scene, this.cam.camera);
+
+    // watchdog: locked controls with no panel or map open means a panel failed; unlock
+    if (this.taskMode && !this.overlays.isOpen && !this.fullMap.isOpen) {
+      this.orphanTask += dt;
+      if (this.orphanTask > 0.4) {
+        this.orphanTask = 0;
+        this.exitTaskMode();
+      }
+    } else this.orphanTask = 0;
 
     this.saveTimer += dt;
     if (this.saveTimer > 2) {

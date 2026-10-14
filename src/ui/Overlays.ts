@@ -59,6 +59,25 @@ export default class Overlays {
     };
   }
 
+  /** Opens an empty panel for a multi-step flow that manages its own body and footer. */
+  panel(title: string, icon: string, onClose: () => void, cls = ""): { body: HTMLElement; foot: HTMLElement; setHead(title: string, icon: string): void; close(): void } {
+    this.open(title, icon, [], [], onClose, cls);
+    const body = this.card.querySelector(".card-body") as HTMLElement;
+    const foot = this.card.querySelector(".card-foot") as HTMLElement;
+    const h2 = this.card.querySelector(".card-head h2") as HTMLElement;
+    const ic = this.card.querySelector(".card-head .card-icon") as HTMLElement;
+    return {
+      body,
+      foot,
+      setHead: (t, i) => {
+        h2.textContent = t;
+        ic.textContent = i;
+        this.card.setAttribute("aria-label", t);
+      },
+      close: () => this.close(),
+    };
+  }
+
   /** Re-renders the open live panel, if any. */
   refresh(): void {
     if (this.isOpen) this.live?.();
