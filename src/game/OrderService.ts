@@ -231,6 +231,22 @@ export default class OrderService {
     return Math.round(o.earnedScore / 10) + Math.floor(total / 1000);
   }
 
+  /** Coins from other store work (e.g. morning tasks), saved with the stats. */
+  addCoins(n: number): void {
+    if (n <= 0 || !Number.isInteger(n)) return;
+    this.stats.coins += n;
+    this.changed();
+  }
+
+  /** Coins lost (e.g. a refund for an expired product); never below zero. */
+  penalty(n: number): number {
+    if (n <= 0 || !Number.isInteger(n)) return 0;
+    const lost = Math.min(n, this.stats.coins);
+    this.stats.coins -= lost;
+    this.changed();
+    return lost;
+  }
+
   /** The customer has left: back to idle for the next one. */
   clear(): void {
     if (this.order?.state !== "complete") return;

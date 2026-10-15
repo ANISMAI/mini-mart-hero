@@ -69,15 +69,15 @@ export const ROOMS: RoomDef[] = [
   { id: "queue", name: "Customer Queue", icon: "🧍", color: 0xf5c99a, enclosed: false, bounds: { x: 1, z: 24, w: 7, d: 6 }, spawn: { x: 7.2, z: 26, yaw: N } },
   { id: "snacks", name: "Snacks Aisle", icon: "🍪", color: 0xf7b6c8, enclosed: false, bounds: { x: 13, z: 10, w: 5, d: 10 }, spawn: { x: 13.8, z: 19.3, yaw: N } },
   { id: "grocery", name: "Grocery Aisle", icon: "🍚", color: 0xa8e0cf, enclosed: false, bounds: { x: 8.5, z: 10, w: 4.5, d: 10 }, spawn: { x: 9.3, z: 19.3, yaw: N } },
-  { id: "drinks", name: "Drinks (Peti Sejuk)", icon: "🧃", color: 0xbfe0f7, enclosed: false, bounds: { x: 2, z: 10, w: 2.6, d: 10 }, spawn: { x: 3.8, z: 19.3, yaw: N } },
-  { id: "household", name: "Kelengkapan Rumah & Penjagaan Diri", short: "Rumah & Diri", icon: "🧴", color: 0xdcc8f2, enclosed: false, bounds: { x: 4.6, z: 10, w: 3.9, d: 10 }, spawn: { x: 5.2, z: 19.3, yaw: N } },
+  { id: "drinks", name: "Drinks (Peti Sejuk)", icon: "🧃", color: 0xbfe0f7, enclosed: false, bounds: { x: 3, z: 10, w: 2.6, d: 10 }, spawn: { x: 4.8, z: 19.3, yaw: N } },
+  { id: "household", name: "Kelengkapan Rumah & Penjagaan Diri", short: "Rumah & Diri", icon: "🧴", color: 0xdcc8f2, enclosed: false, bounds: { x: 5.6, z: 10, w: 2.9, d: 10 }, spawn: { x: 6.2, z: 19.3, yaw: N } },
   { id: "storage", name: "Storage", icon: "📦", color: 0xf5dc96, enclosed: true, bounds: { x: 0, z: 0, w: 8, d: 7 }, spawn: { x: 4.5, z: 5.6, yaw: N } },
   { id: "office", name: "Manager Office", icon: "📋", color: 0xd9c8f2, enclosed: true, bounds: { x: 8, z: 0, w: 8, d: 7 }, spawn: { x: 12, z: 5.6, yaw: N } },
   { id: "rest", name: "Staff Rest Area", icon: "☕", color: 0xffcfb3, enclosed: true, bounds: { x: 16, z: 0, w: 8, d: 7 }, spawn: { x: 17, z: 5.6, yaw: N } },
   { id: "surau", name: "Surau", icon: "🕌", color: 0xb5dfc3, enclosed: true, bounds: { x: 18, z: 10, w: 6, d: 7 }, spawn: { x: 19.4, z: 13.5, yaw: E } },
   { id: "dining", name: "Ruang Makan & Arcade", short: "Ruang Makan", icon: "🍽️", color: 0xffe3b3, enclosed: false, bounds: { x: 18, z: 23, w: 6, d: 7 }, spawn: { x: 18.8, z: 26.6, yaw: E } },
   { id: "utility", name: "Bilik Utiliti", icon: "⚡", color: 0xd8dde6, enclosed: true, bounds: { x: 19, z: 7, w: 5, d: 3 }, spawn: { x: 19.8, z: 8.6, yaw: -Math.PI / 2 } },
-  { id: "chiller", name: "Bilik Sejuk", icon: "❄️", color: 0xcfe9f7, enclosed: true, bounds: { x: 0, z: 10, w: 2, d: 9 }, spawn: { x: 1, z: 10.8, yaw: S } },
+  { id: "chiller", name: "Bilik Sejuk", icon: "❄️", color: 0xcfe9f7, enclosed: true, bounds: { x: 0, z: 10, w: 3, d: 9 }, spawn: { x: 1.5, z: 10.8, yaw: S } },
   { id: "restroom", name: "Tandas", icon: "🚻", color: 0xc9e6f5, enclosed: true, bounds: { x: 18, z: 17, w: 6, d: 6 }, spawn: { x: 19.4, z: 19.8, yaw: E } },
 ];
 

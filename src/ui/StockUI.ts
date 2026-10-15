@@ -1,7 +1,7 @@
 import { el } from "./dom";
 import type Overlays from "./Overlays";
 import { getItem, imageUrl, SECTIONS, type CatalogItem, type Category } from "../data/catalog";
-import { BASKET_MAX, LOW_STOCK, SLOTS, SOURCE_LABEL, slotsOn, type StockSource } from "../data/inventory";
+import { BASKET_MAX, LOW_STOCK, SLOTS, SOURCE_LABEL, dateLabel, expiryStatus, isPerishable, slotsOn, type StockSource } from "../data/inventory";
 import type InventoryService from "../game/Inventory";
 import type { RestockError, RestockMove } from "../game/Inventory";
 
@@ -24,6 +24,7 @@ function productIcon(item: CatalogItem): HTMLElement {
 const ERR: Record<RestockError, (name: string) => string> = {
   locked: (n) => `🔒 ${n} belum dibuka pada level ini.`,
   wrongSlot: (n) => `Bukan slot untuk ${n}. Cari slot berlabel ${n} ya.`,
+  expired: (n) => `Ada ${n} luput di rak ni. Buang dulu.`,
   noStock: (n) => `Tiada lagi ${n} dalam bakul. Ambil di stor dulu.`,
   full: (n) => `Slot ${n} dah penuh.`,
   unknown: () => "Slot tidak dikenali.",
@@ -123,6 +124,82 @@ export default class StockUI {
     const done = el("button", "btn primary", "Siap");
     done.addEventListener("click", () => p.close());
     p.foot.replaceChildren(done);
+  }
+
+  /**
+   * Expiry check for a shelf's perishables: every unit's date label (front of the shelf first,
+   * FEFO), coloured against the game date. Tap an expired label (or "remove all expired") to
+   * take it off sale. No timers or scores. `dev` adds a +1 day button for testing.
+   */
+  expiry(category: Category, onClose: () => void, dev = false): void {
+    const sec = SECTIONS[category];
+    const p = this.overlays.panel(`Tarikh Luput · ${sec.label}`, "📅", onClose, "till stock");
+    const say = el("p", "co-hint");
+    const render = () => {
+      const today = this.inv.day;
+      const head = el("div", "st-head");
+      head.append(el("div", "st-summary ok", `📅 Hari ${today} · ${dateLabel(today)}`), el("div", "ex-legend", "🟥 Luput · 🟨 Hampir · 🟩 Okay"));
+      const list = el("div", "st-list2");
+      const slots = slotsOn(category).filter((sl) => isPerishable(sl.productId) && this.inv.unlocked(sl.productId));
+      if (!slots.length) list.appendChild(el("p", "st-empty", "Tiada barang mudah rosak yang dibuka di rak ini."));
+      for (const sl of slots) {
+        const item = getItem(sl.productId)!;
+        const dates = this.inv.exp.shelf[sl.slotId] ?? [];
+        const expired = this.inv.expiredCount(sl.slotId);
+        const row = el("div", `st-item ${expired ? "needs" : ""}`);
+        const top = el("div", "st-item-top");
+        const info = el("div", "st-item-info");
+        const name = el("div", "st-stock-name");
+        name.append(el("strong", "", item.name), el("span", `st-need ${expired ? "" : "done"}`, expired ? `${expired} luput` : "✓ Semua okay"));
+        info.append(name, el("span", "st-stock-meta", `Di rak ${dates.length}/${sl.capacity} · depan → belakang`));
+        top.append(productIcon(item), info);
+        const tags = el("div", "ex-tags");
+        dates.forEach((d, idx) => {
+          const st = expiryStatus(d, today);
+          const tag = el("button", `ex-tag ${st}`, dateLabel(d));
+          tag.setAttribute("aria-label", `${item.name}, luput ${dateLabel(d)}${st === "expired" ? ", tekan untuk buang" : ""}`);
+          if (st === "expired")
+            tag.addEventListener("click", () => {
+              if (this.inv.removeExpired(sl.slotId, idx)) {
+                say.textContent = `🗑️ ${item.name} (${dateLabel(d)}) dibuang dari rak.`;
+                render();
+              }
+            });
+          else tag.disabled = true;
+          tags.appendChild(tag);
+        });
+        row.append(top, tags);
+        if (expired) {
+          const all = el("button", "btn st-fill", `🗑️ Buang semua luput (${expired})`);
+          all.addEventListener("click", () => {
+            const n = this.inv.removeAllExpired(sl.slotId);
+            say.textContent = `🗑️ ${n} ${item.name} luput dibuang.`;
+            render();
+          });
+          const ctrl = el("div", "st-item-ctrl");
+          ctrl.appendChild(all);
+          row.appendChild(ctrl);
+        }
+        list.appendChild(row);
+      }
+      p.body.className = "card-body st-room";
+      p.body.replaceChildren(head, list, say);
+    };
+    say.textContent = "Barang tarikh awal di depan (FEFO). Tekan label merah untuk buang barang luput.";
+    render();
+    const buttons: HTMLElement[] = [];
+    if (dev) {
+      const next = el("button", "btn", "🛠️ +1 hari");
+      next.addEventListener("click", () => {
+        this.inv.advanceDay();
+        render();
+      });
+      buttons.push(next);
+    }
+    const done = el("button", "btn primary", "Siap");
+    done.addEventListener("click", () => p.close());
+    buttons.push(done);
+    p.foot.replaceChildren(...buttons);
   }
 
   /**

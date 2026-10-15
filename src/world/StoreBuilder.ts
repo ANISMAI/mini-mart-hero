@@ -19,7 +19,7 @@ import { MANAGED, type StockSource } from "../data/inventory";
 
 /** Phase 1.5 adds: light switch (instant), AC controller, manager light panel, electrical cabinet. */
 /** Phase 3 adds: back-stock room (take into basket) and shelf restock. */
-export type TaskKind = "cashier" | "organizer" | "info" | "switch" | "aircon" | "lights" | "electrical" | "stock" | "restock";
+export type TaskKind = "cashier" | "organizer" | "info" | "switch" | "aircon" | "lights" | "electrical" | "stock" | "restock" | "expiry" | "mop" | "bill" | "delivery";
 
 export interface Interactable {
   id: string;
@@ -38,6 +38,8 @@ export interface Interactable {
   zone?: ZoneId;
   /** Back-stock room for "stock" interactions. */
   source?: StockSource;
+  /** Spill index for "mop". */
+  spill?: number;
   room: RoomId;
 }
 
@@ -204,10 +206,10 @@ export function buildStore(level = 1): BuiltStore {
   add(at(label("⚡ BILIK UTILITI", { width: 1.5, height: 0.34, bg: "#3a4252" }), 18.8, 2.4, 8.6, -Math.PI / 2));
   add(at(label("Kakitangan sahaja", { width: 0.8, height: 0.2, bg: "#e8333f" }), 18.88, 1.6, 7.45, -Math.PI / 2));
   // chiller room behind the drink coolers (staff top up the coolers from the back)
-  wall("h", 10, 0, 2, gapsOn("h", 10));
-  wall("h", 19, 0, 2);
-  wall("v", 2, 10, 11);
-  wall("v", 2, 18, 19);
+  wall("h", 10, 0, 3, gapsOn("h", 10));
+  wall("h", 19, 0, 3);
+  wall("v", 3, 10, 11);
+  wall("v", 3, 18, 19);
   add(at(label("❄️ BILIK SEJUK", { width: 1.5, height: 0.34, bg: "#1f8fd6" }), 1, 2.4, 9.8, Math.PI));
 
   // ---------- entrance ----------
@@ -267,7 +269,7 @@ export function buildStore(level = 1): BuiltStore {
   const shelfZ = 11.5;
   // the purple shelf holds two sections, one per face; the others carry one section on both faces
   const aisles: { x: number; west: Category; east: Category; accent: number; room: RoomId }[] = [
-    { x: 6.2, west: "personal", east: "household", accent: 0x9b6ad6, room: "household" },
+    { x: 7.2, west: "personal", east: "household", accent: 0x9b6ad6, room: "household" },
     { x: 10.75, west: "grocery", east: "grocery", accent: SECTIONS.grocery.color, room: "grocery" },
     { x: 15.2, west: "snacks", east: "snacks", accent: SECTIONS.snacks.color, room: "snacks" },
   ];
@@ -290,7 +292,7 @@ export function buildStore(level = 1): BuiltStore {
     if (a.west !== a.east) organizerAt(a.west, a.x - 0.9, shelfZ + shelfLen - 0.6, a.room);
   }
   // drinks & dairy coolers against the left wall, glass doors facing the aisle
-  for (const spot of buildCoolers(group, doors, 2.05, 11, 3, unlockedIn("fridge", level))) productSpots.set(spot.sku, spot);
+  for (const spot of buildCoolers(group, doors, 3.05, 11, 3, unlockedIn("fridge", level))) productSpots.set(spot.sku, spot);
   // (the coolers are refilled from behind, in the chiller room: see below)
   // chiller room: drink crates along the wall, top-up point behind the coolers
   for (const [z, n] of [[11.4, 3], [12.6, 2], [16.4, 3], [17.6, 2]] as const) {
@@ -314,7 +316,7 @@ export function buildStore(level = 1): BuiltStore {
     id: "fridge-restock-back",
     label: "Isi peti sejuk (belakang)",
     icon: "🧊",
-    x: 1.4,
+    x: 2.3,
     z: 16.2,
     radius: 1.2,
     kind: "restock",
@@ -322,7 +324,7 @@ export function buildStore(level = 1): BuiltStore {
     shelf: "fridge",
     room: "chiller",
   });
-  solid(box(2.05, 11, 1, 7));
+  solid(box(3.05, 11, 1, 7));
 
   // ---------- cashier counter ----------
   cashierCounter(group, 5, 22);
@@ -402,6 +404,9 @@ export function buildStore(level = 1): BuiltStore {
     kind: "lights",
     room: "office",
   });
+
+  // the day's electricity bill, checked at the office laptop (morning task)
+  interactables.push({ id: "bill", label: "Semak bil elektrik", icon: "⚡", x: 10.3, z: 2.3, radius: 0.9, kind: "bill", room: "office" });
 
   // ---------- staff rest area ----------
   buildStaffRoom(group, solid);

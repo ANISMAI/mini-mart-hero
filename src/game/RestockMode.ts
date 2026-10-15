@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { el } from "../ui/dom";
 import { getItem, imageUrl, SECTIONS, type CatalogItem, type Category } from "../data/catalog";
-import { SOURCE_LABEL, SOURCE_OF, slotsOn, type ShelfSlot } from "../data/inventory";
+import { SOURCE_LABEL, SOURCE_OF, dateLabel, expiryStatus, isPerishable, slotsOn, type ShelfSlot } from "../data/inventory";
 import type InventoryService from "./Inventory";
 import type { RestockError, RestockMove } from "./Inventory";
 import type { ProductSpot } from "../world/ProductModels";
@@ -13,7 +13,9 @@ import { layoutFor, type Bay, type ProductBays } from "../world/ShelfBays";
 // onto the shelf: its own slot glows green, and on release the unit appears on the 3D shelf.
 // Wrong / locked / full slots send it back with a short note. Swipe to slide along the shelf,
 // +/- to move closer. Undo, Cancel (no change) and Confirm (applies everything at once).
-// No timers, scores or hints.
+// Expiry: out-of-date packs look faded on the shelf. Tap a product to read the date on its front
+// pack; drag an expired pack into the bin. A slot with expired units takes no fresh stock until
+// they are gone. No timers, scores or hints.
 
 /** One bay (the part of a product's block on one shelf board) with its outline. */
 interface SlotView {
@@ -34,6 +36,7 @@ interface SlotView {
 const ERR: Record<RestockError, (name: string) => string> = {
   locked: (n) => `🔒 ${n} belum dibuka pada level ini.`,
   wrongSlot: (n) => `Bukan slot untuk ${n}. Cari bahagian yang bercahaya hijau.`,
+  expired: (n) => `Ada ${n} luput di rak ni. Buang dulu ke tong 🗑️ (tekan barang di rak).`,
   noStock: (n) => `Tiada lagi ${n} dalam kotak. Ambil di stor dulu.`,
   full: (n) => `Slot ${n} dah penuh.`,
   unknown: () => "Lepaskan atas rak ya.",
@@ -91,6 +94,8 @@ export default class RestockMode {
   private uiRoot: HTMLElement;
   /** Shelf preview with pending units: units per bay per slot (the game redraws facings). */
   onPreview: (layouts: Record<string, Record<string, number>>) => void = () => {};
+  /** Developer tools (?dev): a button that makes some packs on this shelf expired. */
+  dev = false;
   /** Bays of every managed product (indexed by the game from the built shelves). */
   getBays: () => Map<string, ProductBays> = () => new Map();
 
@@ -117,6 +122,9 @@ export default class RestockMode {
   private pulse = 0;
   private msg: HTMLElement | null = null;
   private carton: HTMLElement | null = null;
+  /** Date card for the slot the player tapped (front pack, FEFO). */
+  private card: HTMLElement | null = null;
+  private inspectSlot: ShelfSlot | null = null;
 
   constructor(camera: THREE.PerspectiveCamera, scene: THREE.Scene, inv: InventoryService, spots: Map<string, ProductSpot>, uiRoot: HTMLElement) {
     this.camera = camera;
@@ -137,6 +145,7 @@ export default class RestockMode {
     this.onClose = onClose;
     this.pending = [];
     this.selected = null;
+    this.inspectSlot = null;
     this.buildSlots();
     if (!this.views.length) return onClose();
     // frame the shelf face from the aisle, starting at the first slot that needs stock
@@ -287,6 +296,7 @@ export default class RestockMode {
     }
     this.onPreview(this.layouts());
     this.drawCarton();
+    this.drawInspect();
   }
 
   /**
@@ -366,7 +376,9 @@ export default class RestockMode {
     touch.addEventListener("pointerup", (e) => {
       if (e.pointerId !== pid) return;
       pid = -1;
-      if (!moved && this.selected) this.place(this.slotAt(e.clientX, e.clientY, this.selected), this.selected, e.clientX, e.clientY);
+      if (moved) return;
+      if (this.selected) this.place(this.slotAt(e.clientX, e.clientY, this.selected), this.selected, e.clientX, e.clientY);
+      else this.inspect(this.slotAt(e.clientX, e.clientY));
     });
     touch.addEventListener("wheel", (e) => this.zoom(e.deltaY > 0 ? 0.2 : -0.2), { passive: true });
 
@@ -380,6 +392,16 @@ export default class RestockMode {
     zout.setAttribute("aria-label", "Jauh");
     zout.addEventListener("click", () => this.zoom(0.3));
     zoomBar.append(zout, zin);
+    const perishables = slotsOn(this.category).filter((sl) => isPerishable(sl.productId) && this.inv.unlocked(sl.productId));
+    if (this.dev && perishables.length) {
+      const mk = el("button", "btn rs-turn", "🛠️ Buat luput");
+      mk.addEventListener("click", () => {
+        const n = perishables.reduce((a, sl) => a + this.inv.devExpire(sl.slotId, 2), 0);
+        this.say(n ? `🛠️ ${n} pek di depan kini luput (nampak pudar). Tekan barang untuk tengok.` : "Rak kosong, letak stok dulu.");
+        this.refresh();
+      });
+      zoomBar.prepend(mk);
+    }
     if (this.twoFaced && !this.fromBack) {
       const turn = el("button", "btn rs-turn", "🔄 Muka lain");
       turn.addEventListener("click", () => {
@@ -391,6 +413,7 @@ export default class RestockMode {
     top.appendChild(zoomBar);
 
     this.msg = el("div", "rs-msg");
+    this.card = el("div", "rs-inspect");
     this.carton = el("div", "rs-carton");
     const foot = el("div", "rs-foot");
     const undo = el("button", "btn", "↶ Undo");
@@ -407,10 +430,12 @@ export default class RestockMode {
     foot.append(undo, cancel, confirm);
     const bottom = el("div", "rs-bottom");
     bottom.append(this.carton, foot);
-    root.append(touch, top, this.msg, bottom);
+    root.append(touch, top, this.msg, this.card, bottom);
     this.uiRoot.appendChild(root);
     this.root = root;
-    this.say("Seret barang dari kotak ke rak. Bahagian yang betul akan bercahaya hijau. Leret skrin untuk geser rak.");
+    const stale = slotsOn(this.category).some((sl) => this.inv.expiredCount(sl.slotId) > 0);
+    if (stale) this.say("Ada barang yang nampak pudar di rak. Tekan barang untuk tengok tarikh luput.");
+    else this.say("Seret barang dari kotak ke rak. Bahagian yang betul akan bercahaya hijau. Leret skrin untuk geser rak.");
   }
 
   private drawCarton(): void {
@@ -488,6 +513,107 @@ export default class RestockMode {
     };
     pile.addEventListener("pointerup", (e) => finish(e, false));
     pile.addEventListener("pointercancel", (e) => finish(e, true));
+  }
+
+  // ---------- expiry: inspect and bin ----------
+
+  /** Tap on the shelf: the date card for that product (perishables only). */
+  private inspect(view: SlotView | null): void {
+    if (!view || !view.unlocked) return this.closeInspect();
+    const item = getItem(view.slot.productId)!;
+    if (!isPerishable(item.id)) {
+      this.closeInspect();
+      return this.say(`${item.name} tahan lama, takde tarikh luput yang dekat.`);
+    }
+    if (!(this.inv.exp.shelf[view.slot.slotId] ?? []).length) {
+      this.closeInspect();
+      return this.say(`Rak ${item.name} kosong.`);
+    }
+    this.inspectSlot = view.slot;
+    this.drawInspect();
+  }
+
+  private closeInspect(): void {
+    this.inspectSlot = null;
+    this.card?.classList.remove("show");
+  }
+
+  private drawInspect(): void {
+    const slot = this.inspectSlot;
+    if (!slot || !this.card) return;
+    const dates = this.inv.exp.shelf[slot.slotId] ?? [];
+    if (!dates.length) return this.closeInspect();
+    const item = getItem(slot.productId)!;
+    const d = dates[0];
+    const st = expiryStatus(d, this.inv.day);
+    const bad = dates.filter((v) => v < this.inv.day).length;
+    const x = el("button", "rs-inspect-x", "×");
+    x.setAttribute("aria-label", "Tutup");
+    x.addEventListener("click", () => this.closeInspect());
+    const pack = el("div", `rs-pack ${st}`);
+    pack.appendChild(productIcon(item));
+    const bin = el("div", "rs-bin", "🗑️");
+    const row = el("div", "rs-inspect-row");
+    row.append(pack, bin);
+    const note =
+      st === "expired"
+        ? `❌ Dah luput! Seret ke tong sampah.${bad > 1 ? ` (${bad} luput)` : ""}`
+        : st === "near"
+          ? "⚠️ Hampir luput. Biar di depan supaya laku dulu."
+          : "✅ Masih elok.";
+    this.card.replaceChildren(x, el("strong", "rs-inspect-name", item.name), row, el("div", `rs-date ${st}`, `Luput: ${dateLabel(d)}`), el("p", "rs-inspect-note", note));
+    this.card.classList.add("show");
+    this.dragToBin(pack, bin, slot, st === "expired");
+  }
+
+  /** Drag the front pack into the bin: only expired ones may go. */
+  private dragToBin(pack: HTMLElement, bin: HTMLElement, slot: ShelfSlot, expired: boolean): void {
+    const item = getItem(slot.productId)!;
+    let id = -1;
+    let ghost: HTMLElement | null = null;
+    pack.style.touchAction = "none";
+    pack.addEventListener("dragstart", (e) => e.preventDefault());
+    pack.addEventListener("pointerdown", (e) => {
+      id = e.pointerId;
+      pack.setPointerCapture(id);
+      ghost = el("div", `st-ghost rs-ghost ${expired ? "expired" : ""}`);
+      ghost.appendChild(productIcon(item));
+      document.body.appendChild(ghost);
+      ghost.style.transform = `translate(${e.clientX - 28}px, ${e.clientY - 28}px) scale(1.15)`;
+      pack.classList.add("lifting");
+    });
+    pack.addEventListener("pointermove", (e) => {
+      if (e.pointerId !== id || !ghost) return;
+      ghost.style.transform = `translate(${e.clientX - 28}px, ${e.clientY - 28}px) scale(1.15)`;
+      const r = bin.getBoundingClientRect();
+      bin.classList.toggle("over", e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom);
+    });
+    const finish = (e: PointerEvent, cancelled: boolean) => {
+      if (e.pointerId !== id) return;
+      id = -1;
+      pack.classList.remove("lifting");
+      const over = bin.classList.contains("over");
+      bin.classList.remove("over");
+      const g = ghost;
+      ghost = null;
+      if (!g) return;
+      if (!cancelled && over) {
+        if (!expired) {
+          this.say(`${item.name} ni masih elok, jangan buang ya.`, true);
+        } else if (this.inv.removeExpired(slot.slotId, 0)) {
+          g.remove();
+          this.say(`🗑️ ${item.name} luput dibuang.`);
+          this.refresh();
+          return;
+        }
+      }
+      const r = pack.getBoundingClientRect();
+      g.classList.add("back");
+      g.style.transform = `translate(${r.left + r.width / 2 - 28}px, ${r.top + r.height / 2 - 28}px) scale(0.8)`;
+      setTimeout(() => g.remove(), 260);
+    };
+    pack.addEventListener("pointerup", (e) => finish(e, false));
+    pack.addEventListener("pointercancel", (e) => finish(e, true));
   }
 
   private zoom(delta: number): void {

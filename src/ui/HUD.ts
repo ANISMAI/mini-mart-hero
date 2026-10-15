@@ -48,6 +48,30 @@ export default class HUD {
   private levelPill: HTMLElement;
   private alertPill: HTMLElement;
   private coinsPill: HTMLElement;
+  private stockPill: HTMLButtonElement;
+  private datePill: HTMLButtonElement;
+  /** Tap on the date: open the morning checklist. */
+  onDatePill: (() => void) | null = null;
+  private expiryPill: HTMLButtonElement;
+  onExpiryPill: (() => void) | null = null;
+
+  /** "🗑️ Luput: N" pill (null hides it). */
+  setExpiryAlert(text: string | null): void {
+    this.expiryPill.textContent = text ?? "";
+    this.expiryPill.classList.toggle("hidden", !text);
+  }
+
+  setDate(text: string): void {
+    this.datePill.textContent = text;
+  }
+  /** Tap on the low-stock pill. */
+  onStockPill: (() => void) | null = null;
+
+  /** "📦 Stok rendah: N" pill (null hides it). */
+  setStockAlert(text: string | null): void {
+    this.stockPill.textContent = text ?? "";
+    this.stockPill.classList.toggle("hidden", !text);
+  }
   private objective: HTMLElement;
 
   setCoins(n: number): void {
@@ -92,9 +116,15 @@ export default class HUD {
     this.levelPill = el("span", "hud-pill", "⭐ Lv 1");
     this.alertPill = el("span", "hud-pill hud-alert hidden");
     this.coinsPill = el("span", "hud-pill", "🪙 0");
+    this.datePill = el("button", "hud-pill hud-date", "📅");
+    this.datePill.addEventListener("click", () => this.onDatePill?.());
+    this.stockPill = el("button", "hud-pill hud-stock hidden");
+    this.stockPill.addEventListener("click", () => this.onStockPill?.());
+    this.expiryPill = el("button", "hud-pill hud-stock hud-expiry hidden");
+    this.expiryPill.addEventListener("click", () => this.onExpiryPill?.());
     this.objective = el("div", "hud-objective hidden");
     this.objective.setAttribute("aria-live", "polite");
-    profile.append(el("span", "hud-avatar", "🧑‍💼"), this.levelPill, this.coinsPill, this.alertPill, this.objective);
+    profile.append(el("span", "hud-avatar", "🧑‍💼"), this.levelPill, this.coinsPill, this.datePill, el("span", "hud-break"), this.alertPill, this.stockPill, this.expiryPill, this.objective);
     stats.append(pause, profile);
 
     this.miniMapMount = el("button", "hud-minimap");

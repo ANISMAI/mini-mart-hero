@@ -9,6 +9,8 @@ export default class MiniMap {
   private ctx: CanvasRenderingContext2D;
   private dpr = Math.min(2, window.devicePixelRatio || 1);
   private pulse = 0;
+  /** Points of interest (e.g. low-stock shelves), drawn as pulsing orange dots. */
+  markers: { x: number; z: number }[] = [];
 
   constructor(mount: HTMLElement) {
     const c = document.createElement("canvas");
@@ -45,6 +47,21 @@ export default class MiniMap {
       }
     }
     c.globalAlpha = 1;
+    // low-stock / where-to-go markers
+    for (const m of this.markers) {
+      const r = 3.2 + Math.sin(this.pulse * 1.5) * 0.8;
+      c.beginPath();
+      c.arc(m.x * s, m.z * s, r + 2, 0, Math.PI * 2);
+      c.fillStyle = "rgba(242, 140, 30, 0.35)";
+      c.fill();
+      c.beginPath();
+      c.arc(m.x * s, m.z * s, r, 0, Math.PI * 2);
+      c.fillStyle = "#f28c1e";
+      c.strokeStyle = "#fff";
+      c.lineWidth = 1;
+      c.fill();
+      c.stroke();
+    }
     // avatar arrow
     this.pulse = (this.pulse + 0.06) % (Math.PI * 2);
     const px = x * s;

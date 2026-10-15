@@ -61,3 +61,30 @@ export const SEED = {
   storage: 24,
   shelf: (slot: ShelfSlot, i: number) => START_SHELF[slot.productId] ?? Math.max(1, Math.round(slot.capacity * PATTERN[i % PATTERN.length])),
 };
+
+// ---------- expiry (perishables only; everything else has no date) ----------
+
+/** Shelf life in game days for perishable products (SKU -> days). */
+export const SHELF_LIFE: Record<string, number> = {
+  "01-002": 5, // Susu Segar 1L
+  "01-004": 10, // Minuman Coklat Malt
+  "01-005": 3, // Air Soya
+  "01-008": 6, // Yogurt Strawberi
+  "01-009": 14, // Mentega 250g
+  "04-001": 3, // Roti Putih
+  "04-007": 10, // Telur Gred A
+};
+export const isPerishable = (productId: string) => productId in SHELF_LIFE;
+
+/** Game day 1 is this date; one game day passes every few completed sales (not real time). */
+const START_DATE = new Date(2026, 9, 15);
+const MONTHS = ["Jan", "Feb", "Mac", "Apr", "Mei", "Jun", "Jul", "Ogo", "Sep", "Okt", "Nov", "Dis"];
+export function dateLabel(day: number): string {
+  const d = new Date(START_DATE);
+  d.setDate(d.getDate() + day - 1);
+  return `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+}
+/** Completed sales per game day. */
+export const SALES_PER_DAY = 3;
+/** Expiry status of a unit on `today`: expired (before today), near (today or tomorrow), ok. */
+export const expiryStatus = (exp: number, today: number): "expired" | "near" | "ok" => (exp < today ? "expired" : exp <= today + 1 ? "near" : "ok");

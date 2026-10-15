@@ -32,7 +32,7 @@ export interface ZoneDef {
 }
 
 const aisleLights: [number, number][] = [];
-for (const x of [3.9, 8.5, 13, 16.8]) for (const z of [12, 15, 18]) aisleLights.push([x, z]);
+for (const x of [4.9, 9.0, 13, 16.8]) for (const z of [12, 15, 18]) aisleLights.push([x, z]);
 
 export const ZONES: ZoneDef[] = [
   {
@@ -41,8 +41,8 @@ export const ZONES: ZoneDef[] = [
     icon: "🏪",
     rects: [
       { x: 0, z: 7, w: 19, d: 3 }, // back corridor
-      { x: 2, z: 10, w: 16, d: 20 }, // aisles, cashier, entrance
-      { x: 0, z: 19, w: 2, d: 11 }, // front left
+      { x: 3, z: 10, w: 15, d: 20 }, // aisles, cashier, entrance
+      { x: 0, z: 19, w: 3, d: 11 }, // front left
       { x: 18, z: 23, w: 6, d: 7 }, // dining corner
     ],
     fixtures: [...aisleLights, [5, 24.5], [5, 27.5], [12, 24.5], [12, 27.5], [16, 27.5], [20.5, 25.5], [22, 28.2], [4, 8.5], [10, 8.5], [16, 8.5]],
@@ -53,8 +53,8 @@ export const ZONES: ZoneDef[] = [
     id: "fridge",
     label: "Kawasan Peti Sejuk",
     icon: "🧊",
-    rects: [{ x: 0, z: 10, w: 2, d: 9 }],
-    fixtures: [[1, 12.5], [1, 16.5], [2.6, 12], [2.6, 15], [2.6, 18]],
+    rects: [{ x: 0, z: 10, w: 3, d: 9 }],
+    fixtures: [[1.5, 12.5], [1.5, 16.5], [3.6, 12], [3.6, 15], [3.6, 18]],
     switchAt: { x: 1.95, y: 1.3, z: 9.88, face: "north", ix: 1.95, iz: 9.25 },
     tripable: false,
   },

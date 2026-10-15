@@ -17,12 +17,18 @@ import { buildExterior, type Exterior } from "../world/Exterior";
 import OrderService from "./OrderService";
 import Checkout from "../ui/Checkout";
 import CustomerNPC from "../world/CustomerNPC";
-import { CATALOG, getItem } from "../data/catalog";
+import { CATALOG, getItem, SECTIONS } from "../data/catalog";
 import InventoryService from "./Inventory";
 import StockUI from "../ui/StockUI";
 import RestockMode from "./RestockMode";
-import { SOURCE_LABEL, SOURCE_OF, slotOf } from "../data/inventory";
+import { SLOTS, SOURCE_LABEL, SOURCE_OF, dateLabel, isPerishable, slotOf } from "../data/inventory";
 import { setPictureReady } from "../world/ProductModels";
+import StoreDay, { CLOSE, SPILL_SPOTS, type TaskId } from "./StoreDay";
+import MorningUI from "../ui/MorningUI";
+import Spills from "../world/Spills";
+import DeliveryService, { ARRIVE } from "./Delivery";
+import DeliveryUI from "../ui/DeliveryUI";
+import { PALLET_AT, buildPallet } from "../world/DeliveryPallet";
 import { applyBayVisuals, indexBays, layoutFor, type ProductBays } from "../world/ShelfBays";
 import { t } from "../data/strings";
 
@@ -109,6 +115,15 @@ export default class Game {
   private restock: RestockMode;
   /** Shelf bays (part of a product's block per board) of every managed product. */
   private bays = new Map<string, ProductBays>();
+  // opening routine: the day clock (07:00 -> open 10:00 -> close 22:00), tasks, spills
+  private storeDay = new StoreDay();
+  private morningUI!: MorningUI;
+  private spills!: Spills;
+  // the supplier's morning delivery (08:00) at the storage room
+  private delivery = new DeliveryService();
+  private deliveryUI!: DeliveryUI;
+  private pallet!: THREE.Group;
+
   /** Scene lights and their full intensities (dimmed while the player's zone is dark). */
   private lights: { light: THREE.Light; full: number }[] = [];
   private dim = 1;
@@ -165,6 +180,10 @@ export default class Game {
     this.bays = indexBays(this.store.group);
     this.restock = new RestockMode(this.cam.camera, this.scene, this.inventory, this.store.productSpots, uiRoot);
     this.restock.getBays = () => this.bays;
+    this.restock.dev = this.dev;
+    this.spills = new Spills(this.store.group);
+    this.spills.show(this.storeDay.spills);
+    this.pallet = buildPallet(this.store.group);
     this.restock.onPreview = (extra) => this.applyStockVisuals(extra);
 
     this.customers = [
@@ -175,10 +194,10 @@ export default class Game {
         [16.8, 20.5],
       ]),
       new AmbientCustomer(CUSTOMER_LOOKS[1], this.store.collisions, [
-        [3.8, 20],
-        [3.8, 10.6],
-        [8.5, 10.6],
-        [8.5, 20],
+        [4.9, 20],
+        [4.9, 10.6],
+        [9.0, 10.6],
+        [9.0, 20],
       ], 2),
     ];
     for (const c of this.customers) this.scene.add(c.avatar.root);
@@ -204,11 +223,40 @@ export default class Game {
     this.updateAlert();
     // stock: screens, shelf visuals follow the inventory
     this.stockUI = new StockUI(this.overlays, this.inventory);
+    this.hud.onStockPill = () => this.explainLowStock();
+    this.hud.onExpiryPill = () => this.explainExpired();
+    this.hud.onDatePill = () => this.openMorning();
+    // the day clock: owns the date (expiry follows it), opens and closes the shop
+    this.morningUI = new MorningUI(this.overlays, this.storeDay);
+    this.deliveryUI = new DeliveryUI(this.overlays);
+    if (this.inventory.day > this.storeDay.day) this.storeDay.day = this.inventory.day; // older saves
+    this.inventory.setDay(this.storeDay.day);
+    this.ensureDelivery();
+    this.storeDay.subscribe(() => {
+      this.spills.show(this.storeDay.spills);
+      this.pallet.visible = this.deliveryWaiting();
+      this.updateClockPill();
+    });
+    this.storeDay.onEvent = (e) => {
+      if (e === "open") this.hud.showToast("🏪 Kedai dibuka! Pelanggan mula datang.", 3500);
+      if (e === "close") this.hud.showToast("🌙 Kedai tutup. Jumpa esok!", 3000);
+      if (e === "delivery" && this.deliveryWaiting()) this.hud.showToast("🚚 Lori penghantaran dah sampai! Kotak di Stor, tepi pintu.", 4000);
+      if (e === "newDay") {
+        this.inventory.setDay(this.storeDay.day);
+        this.ensureDelivery();
+        window.setTimeout(() => this.openMorning(), 600);
+      }
+    };
+    this.updateClockPill();
+    // morning of a fresh visit: show the checklist once the scene has settled
+    if (this.storeDay.morning) window.setTimeout(() => this.openMorning(), 1200);
     this.inventory.subscribe(() => {
       if (!this.restock.active) this.applyStockVisuals();
+      this.refreshLowStock();
       this.player.avatar.setCarrying(this.inventory.basketCount() > 0); // carry the carton while it holds stock
     });
     this.applyStockVisuals();
+    this.refreshLowStock();
     this.player.avatar.setCarrying(this.inventory.basketCount() > 0);
     // orders: till screens, HUD objective and the customer's bubble follow the service
     this.checkout = new Checkout(this.overlays, this.orders);
@@ -239,6 +287,7 @@ export default class Game {
     });
     window.addEventListener("resize", () => this.resize());
     window.addEventListener("beforeunload", () => this.save());
+    window.addEventListener("mmh-wipe", () => (this.wiped = true));
 
     this.restore();
     this.resize();
@@ -264,7 +313,10 @@ export default class Game {
     this.cam.snap(this.player.position);
   }
 
+  private wiped = false;
+
   private save(): void {
+    if (this.wiped) return; // "start over" in progress
     const data: SaveData = {
       version: 1,
       x: this.player.position.x,
@@ -372,7 +424,8 @@ export default class Game {
         const o = this.orders.order;
         if (o && o.state === "complete") {
           // the confirmed sale leaves the shelves (once per order), then the customer goes
-          const low = this.inventory.sell(o.id, o.lines);
+          const { low, expired } = this.inventory.sell(o.id, o.lines);
+
           if (low.length) {
             const s = low[0];
             const item = getItem(s.productId)!;
@@ -380,21 +433,58 @@ export default class Game {
             this.hud.showToast(`📦 Stok ${item.name} rendah (${this.inventory.shelf[s.slotId]}/${s.capacity}). Ambil stok di ${where.icon} ${where.name}.`, 4500);
           }
           this.npc.leave();
+          if (expired.length) this.complain(expired);
         }
       });
     }
-    else if (it.kind === "stock") this.stockUI.backStock(it.source!, done);
+    else if (it.kind === "stock") {
+      this.stockUI.backStock(it.source!, done);
+      this.finishTask("stock");
+    } else if (it.kind === "mop" && it.spill !== undefined) {
+      const i = it.spill;
+      this.morningUI.mop(() => {
+        this.storeDay.cleanSpill(i);
+        if (!this.storeDay.spills.length) this.finishTask("mop");
+      }, done);
+    } else if (it.kind === "delivery") {
+      const d = this.delivery;
+      this.deliveryUI.open(
+        d.lines,
+        (r) => {
+          if (!d.markReceived()) return "Penghantaran hari ni dah diterima.";
+          this.inventory.receive(d.lines.map((l) => ({ productId: l.productId, units: l.actual })));
+          this.pallet.visible = false;
+          this.finishTask("delivery");
+          // reporting the short carton gets the supplier's credit back
+          const credit = r.allRight && r.reportedShort ? r.reportedShort * 2 : 0;
+          if (credit) this.orders.addCoins(credit);
+          if (credit) return `✅ Betul! Kotak kurang dilaporkan. Pembekal kreditkan +${credit} 🪙.`;
+          return r.allRight ? "✅ Semua cukup. Stok masuk stor." : "Stok masuk stor ikut kiraan sebenar.";
+        },
+        done
+      );
+    } else if (it.kind === "bill") this.morningUI.bill(this.utils, () => this.finishTask("bill"), done);
     else if (it.kind === "restock") {
       // the restock mode has its own full-screen UI: hide the normal HUD meanwhile
       // (the avatar steps out of the shot too, so it never blocks the shelf)
       this.hud.root.style.visibility = "hidden";
       this.player.avatar.root.visible = false;
+      const cat = it.shelf as Exclude<typeof it.shelf, "storage" | undefined>;
       this.restock.open(
-        it.shelf as Exclude<typeof it.shelf, "storage" | undefined>,
+        cat,
         () => {
           this.hud.root.style.visibility = "";
           this.player.avatar.root.visible = true;
           done();
+          // morning task: done once a shelf with perishables was checked and nothing anywhere is out of date
+          if (SLOTS.some((s) => s.category === cat && isPerishable(s.productId))) {
+            const left = this.staleSlots();
+            if (!left.length) this.finishTask("expiry");
+            else if (!left.some((s) => s.category === cat)) {
+              const where = [...new Set(left.map((s) => (s.category === "fridge" ? "peti sejuk" : SECTIONS[s.category].label)))].join(" & ");
+              this.hud.showToast(`👍 Rak ni dah bersih. Masih ada barang luput di ${where}.`, 3500);
+            }
+          }
         },
         it.source === "chiller" // coolers: refilled from the back, in the chiller room
       );
@@ -435,8 +525,150 @@ export default class Game {
       const slot = slotOf(sku);
       if (!slot) continue;
       const lay = layouts[slot.slotId] ?? layoutFor(entry.bays, this.inventory.shelf[slot.slotId] ?? 0, this.inventory.layout[slot.slotId]);
-      applyBayVisuals(entry, lay);
+      applyBayVisuals(entry, lay, this.inventory.expiredCount(slot.slotId));
     }
+  }
+
+  /**
+   * Low-stock hints (never a forced mission): a HUD pill with the count, and map markers on each
+   * shelf that has low slots plus the back-stock room when its stock isn't in the basket yet.
+   */
+  private refreshLowStock(): void {
+    const low = this.inventory.lowSlots();
+    this.hud.setStockAlert(low.length ? `📦 Stok rendah: ${low.length}` : null);
+    const marks: { x: number; z: number; text: string }[] = [];
+    const cats = [...new Set(low.map((s) => s.category))];
+    for (const cat of cats) {
+      const n = low.filter((s) => s.category === cat).length;
+      const shelf = this.store.interactables.find((i) => i.kind === "restock" && i.shelf === cat);
+      if (shelf) marks.push({ x: shelf.x, z: shelf.z, text: `${SECTIONS[cat].icon} ${n}` });
+      const carried = low.some((s) => s.category === cat && (this.inventory.basket[s.productId] ?? 0) > 0);
+      const room = this.store.interactables.find((i) => i.kind === "stock" && i.source === SOURCE_OF[cat]);
+      if (!carried && room && !marks.some((m) => m.x === room.x && m.z === room.z)) marks.push({ x: room.x, z: room.z, text: `${SOURCE_LABEL[SOURCE_OF[cat]].icon} Ambil` });
+    }
+    // expired perishables: a pill and a pin at the shelf where they sit (checked in restock mode)
+    let expiredTotal = 0;
+    for (const spot of this.store.interactables.filter((i) => i.kind === "restock")) {
+      const n = SLOTS.filter((s) => s.category === spot.shelf && this.inventory.unlocked(s.productId)).reduce((a, s) => a + this.inventory.expiredCount(s.slotId), 0);
+      expiredTotal += n;
+      if (n) marks.push({ x: spot.x, z: spot.z + 0.6, text: `📅 ${n} luput` });
+    }
+    this.hud.setExpiryAlert(expiredTotal ? `🗑️ Luput: ${expiredTotal}` : null);
+    this.miniMap.markers = marks;
+    this.fullMap.setMarkers(marks);
+  }
+
+  /** Morning checklist; "Pergi" walks the player to the task. */
+  private openMorning(): void {
+    if (this.taskMode) return;
+    this.enterTaskMode();
+    this.morningUI.checklist((task) => this.goToTask(task), () => this.exitTaskMode(), this.dev, () =>
+      // dev: the front packs of every displayed perishable go out of date
+      SLOTS.filter((s) => isPerishable(s.productId) && this.inventory.unlocked(s.productId) && this.store.productSpots.has(s.productId)).reduce((a, s) => a + this.inventory.devExpire(s.slotId, 2), 0)
+    );
+  }
+
+  private goToTask(task: TaskId): void {
+    const find = (kind: string, pred: (i: Interactable) => boolean = () => true) => this.store.interactables.find((i) => i.kind === kind && pred(i));
+    if (task === "mop") {
+      const i = this.storeDay.spills[0];
+      if (i !== undefined) this.travelToSpot(SPILL_SPOTS[i][0], SPILL_SPOTS[i][1] + 1.0, 0);
+    } else if (task === "expiry") {
+      const fridgeExpired = this.staleSlots().some((s) => s.category === "fridge");
+      const spot = find("restock", (i) => i.shelf === (fridgeExpired ? "fridge" : "grocery"));
+      if (spot) this.travelToSpot(spot.x, spot.z, spot.shelf === "fridge" ? -Math.PI / 2 : Math.PI / 2);
+    } else if (task === "delivery") {
+      this.travelToSpot(PALLET_AT.x, PALLET_AT.z + 1.1, 0);
+    } else if (task === "bill") {
+      const spot = find("bill");
+      if (spot) this.travelToSpot(spot.x, spot.z, Math.PI / 2);
+    } else {
+      const spot = find("stock", (i) => i.source === "storage");
+      if (spot) this.travelToSpot(spot.x, spot.z, 0);
+    }
+  }
+
+  /** Mark a morning task done and pay its small reward (once per day). */
+  private finishTask(task: TaskId): void {
+    if (this.storeDay.done[task]) return;
+    const coins = this.storeDay.complete(task);
+    if (coins) this.orders.addCoins(coins);
+    const label = task === "mop" ? "Lantai bersih" : task === "bill" ? "Bil elektrik disemak" : task === "stock" ? "Stok disemak" : task === "delivery" ? "Penghantaran diterima" : "Barang luput dibuang";
+    this.hud.showToast(`✅ ${label}${coins ? ` · +${coins} 🪙` : ""}`, 2500);
+  }
+
+  /** "📅 15 Okt · 7:30 pg 🔒" (closed before 10:00). */
+  private updateClockPill(): void {
+    const d = this.storeDay;
+    this.hud.setDate(`📅 ${dateLabel(d.day)} · ${d.timeLabel()} ${d.open ? "🟢" : "🔒"}`);
+  }
+
+  /** Today's delivery for the products on display (made once per day). */
+  private ensureDelivery(): void {
+    this.delivery.ensure(this.storeDay.day, this.inventory.storage, (id) => this.inventory.unlocked(id) && this.store.productSpots.has(id));
+    // nothing to deliver today: the task needs no work (and pays nothing)
+    if (!this.delivery.lines.length && !this.storeDay.done.delivery) this.storeDay.complete("delivery");
+    this.pallet.visible = this.deliveryWaiting();
+  }
+
+  /** The lorry has come (08:00) and the cartons are still waiting. */
+  private deliveryWaiting(): boolean {
+    return this.storeDay.minute >= ARRIVE && this.delivery.day === this.storeDay.day && !this.delivery.received && this.delivery.lines.length > 0;
+  }
+
+  private deliveryInteractables(): Interactable[] {
+    if (!this.deliveryWaiting()) return [];
+    return [{ id: "delivery", label: "Terima penghantaran", icon: "🚚", x: PALLET_AT.x, z: PALLET_AT.z + 0.5, radius: 1.1, kind: "delivery", room: "storage" }];
+  }
+
+  /** Spills on the floor are interact points (mop) while they're there. */
+  private spillInteractables(): Interactable[] {
+    return this.storeDay.spills.map((i) => ({ id: `spill-${i}`, label: "Mop lantai", icon: "🧹", x: SPILL_SPOTS[i][0], z: SPILL_SPOTS[i][1], radius: 1.2, kind: "mop" as const, spill: i, room: "entrance" as const }));
+  }
+
+  /** Fade-teleport to a point (facing given), like Go Here on the map. */
+  private travelToSpot(x: number, z: number, facing: number): void {
+    this.fade.classList.add("show");
+    window.setTimeout(() => {
+      this.player.place(x, z, facing);
+      this.cam.yaw = facing;
+      this.cam.snap(this.player.position);
+      this.save();
+      this.fade.classList.remove("show");
+    }, 220);
+  }
+
+  /** Tap on the expiry pill: what is out of date and where to check it. */
+  private explainExpired(): void {
+    const items = this.staleSlots().map((s) => `${getItem(s.productId)!.name} (${this.inventory.expiredCount(s.slotId)})`);
+    if (!items.length) return;
+    this.hud.showToast(`🗑️ Luput: ${items.join(", ")}. Buka rak (peti sejuk dari Bilik Sejuk / Barang Dapur), tekan barang yang pudar dan seret ke 🗑️.`, 5500);
+  }
+
+  /** Shelf slots (on display at this level) that still hold expired units. */
+  private staleSlots() {
+    return SLOTS.filter((s) => this.inventory.unlocked(s.productId) && this.store.productSpots.has(s.productId) && this.inventory.expiredCount(s.slotId) > 0);
+  }
+
+  /** A customer bought something out of date: they come back to complain; refund costs coins. */
+  private complain(expired: { productId: string; units: number }[]): void {
+    const units = expired.reduce((a, e) => a + e.units, 0);
+    const name = getItem(expired[0].productId)!.name;
+    window.setTimeout(() => {
+      this.npc.setBubble("😠");
+      const lost = this.orders.penalty(units * 5);
+      this.hud.showToast(`😠 Pelanggan komplen: "${name} ni dah luput!" Duit dipulangkan${lost ? ` · −${lost} 🪙` : ""}. Semak rak setiap pagi ya.`, 5500);
+    }, 1500);
+  }
+
+  /** Tap on the pill: which products are low and where to fetch them. */
+  private explainLowStock(): void {
+    const low = this.inventory.lowSlots();
+    if (!low.length) return;
+    const names = low.slice(0, 3).map((s) => `${getItem(s.productId)!.name} ${this.inventory.shelf[s.slotId] ?? 0}/${s.capacity}`);
+    const more = low.length > 3 ? ` +${low.length - 3} lagi` : "";
+    const rooms = [...new Set(low.map((s) => SOURCE_LABEL[SOURCE_OF[s.category]]))].map((r) => `${r.icon} ${r.name}`).join(" / ");
+    this.hud.showToast(`📦 ${names.join(", ")}${more}. Ambil stok di ${rooms} (lihat penanda di peta).`, 5000);
   }
 
   /** Scanner / till beep. */
@@ -498,7 +730,8 @@ export default class Game {
     this.npc.update(dt);
     // safety net: a customer standing at the till is never left marked as still shopping
     if (this.npc.state === "waiting" && this.orders.state === "shopping") this.orders.arrivedAtTill();
-    if (this.orders.state === "idle" && this.npc.state === "hidden") {
+    if (!this.taskMode) this.storeDay.tick(dt);
+    if (this.orders.state === "idle" && this.npc.state === "hidden" && this.storeDay.open && this.storeDay.minute < CLOSE - 30) {
       this.nextCustomerIn -= dt;
       if (this.nextCustomerIn <= 0) {
         this.nextCustomerIn = 8;
@@ -571,7 +804,7 @@ export default class Game {
     // nearest interactable in range
     let best: Interactable | null = null;
     let bestD = Infinity;
-    for (const it of this.store.interactables) {
+    for (const it of [...this.store.interactables, ...this.spillInteractables(), ...this.deliveryInteractables()]) {
       const d = Math.hypot(p.x - it.x, p.z - it.z);
       if (d < it.radius && d < bestD) {
         best = it;

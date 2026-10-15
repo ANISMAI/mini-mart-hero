@@ -184,12 +184,30 @@ export default class Overlays {
       onReset();
       this.close();
     });
+    // start over: wipes every save of this game (tap twice to confirm), then reloads
+    const wipe = el("button", "btn danger", "🔄 Mula semula (padam semua progress)");
+    let armed = false;
+    wipe.addEventListener("click", () => {
+      if (!armed) {
+        armed = true;
+        wipe.textContent = "⚠️ Pasti? Tekan sekali lagi";
+        return;
+      }
+      try {
+        window.dispatchEvent(new Event("mmh-wipe")); // the game stops saving (no write-back on unload)
+        for (const k of Object.keys(localStorage)) if (k.startsWith("mini-market-hero")) localStorage.removeItem(k);
+      } catch {
+        // storage unavailable
+      }
+      location.reload();
+    });
     this.open(
       "Paused",
       "⏸",
       [
         el("p", "muted", "Controls: left thumb to walk · drag to look · pinch to zoom. Desktop: WASD / arrows, mouse drag, wheel, E to interact, M for the map."),
         reset,
+        wipe,
       ],
       [this.closeBtn("Resume")],
       onClose,

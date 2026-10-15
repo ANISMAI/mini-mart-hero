@@ -170,8 +170,33 @@ such as `fridge.air-mineral-500ml`, capacity 12, bulky items 8; low stock at 3 o
   **Confirm** applies all moves at once; **Cancel** changes nothing. No timers or scoring.
 - **Sales:** a completed sale subtracts shelf stock once per order; customers only pick products
   that are on the shelf. A toast warns when a slot drops to low stock and says where to restock.
+- **Expiry (perishables only):** Susu Segar, Coklat Malt, Air Soya, Yogurt, Mentega, Roti Putih and
+  Telur carry a date per unit (other products have none). Game day 1 = 15 Okt 2026; days follow
+  the store clock below. "Semak tarikh luput" (behind the coolers in
+  the Bilik Sejuk, and at the green shelf) lists each unit front-to-back with a red / yellow /
+  green label; tap a red one (or remove all expired) to take it off sale. Shelves stay
+  earliest-first (FEFO); customers never buy expired units. `?dev` adds a +1 day button.
+- **Low stock:** HUD pill "📦 Stok rendah: N" (tap for the list) and orange pins on the mini-map /
+  full map at the shelves and at the Stor / Bilik Sejuk when that stock isn't carried yet.
 - **3D:** each product shows fewer facings as its slot empties (instanced count, no new meshes).
 - Saved under `mini-market-hero-inventory-v2` (missing/broken values fall back to the seed).
+
+## Store day & morning routine
+
+`src/game/StoreDay.ts`: the day clock (1 game minute per real second, paused while a panel is
+open or the tab is hidden). **07:00** the day starts with the shop closed → **10:00** the shop
+opens and customers come → **22:00** it closes → next day 07:00. The HUD date pill shows
+date, time and 🔒/🟢; tap it for the **morning checklist** (`src/ui/MorningUI.ts`), which also
+opens by itself each morning. Tasks (optional, +5 coins each, once per day), each with **Pergi**:
+
+- 📅 **Semak tarikh luput**: done when nothing on the shelves is out of date after a check.
+- 🧹 **Mop lantai**: 2–3 spills with wet-floor cones appear each morning
+  (`src/world/Spills.ts`); Interact and wipe the puddle until it's clean.
+- ⚡ **Semak bil elektrik**: at the office laptop; a fictional daily bill from the current lights
+  and aircond settings (integer sen), with a saving tip.
+- 📦 **Semak stok**: open the Stor / Bilik Sejuk stock screen.
+
+`?dev` adds "Buka sekarang" to the checklist. The game day also drives expiry dates.
 
 ## Replacing models and textures
 

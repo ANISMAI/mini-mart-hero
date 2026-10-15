@@ -31,6 +31,9 @@ export interface ProductBays {
 
 const keyOf = (face: number, y: number) => `${face > 0 ? "+" : "-"}${y.toFixed(2)}`;
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
+const FRESH = new THREE.Color(0xffffff);
+/** Out-of-date packs: dull and brownish (no outlines or icons). */
+const STALE = new THREE.Color(0x7a6448);
 
 /** Groups every managed product's instances into bays and works out each bay's capacity and box. */
 export function indexBays(storeGroup: THREE.Object3D): Map<string, ProductBays> {
@@ -165,18 +168,39 @@ export function layoutFor(bays: Bay[], qty: number, saved?: Record<string, numbe
   return out;
 }
 
-/** Shows, per bay, the facings matching its units (front row first); hides the rest. */
-export function applyBayVisuals(entry: ProductBays, units: Record<string, number>): void {
+/**
+ * Shows, per bay, the facings matching its units (front row first); hides the rest. `stale`
+ * expired units tint the same share of the shown facings, front of the lowest board first.
+ */
+export function applyBayVisuals(entry: ProductBays, units: Record<string, number>, stale = 0): void {
   const caps = new Map(entry.bays.map((b) => [b.key, b.cap]));
+  const total = Object.values(units).reduce((a, b) => a + b, 0);
+  const share = total > 0 ? Math.min(1, stale / total) : 0;
   for (const { mesh, groups, orig } of entry.meshes) {
-    for (const [key, idx] of groups) {
+    const shown: number[] = [];
+    for (const [key, idx] of [...groups].sort((a, b) => sortKeys(a[0], b[0]))) {
       const cap = caps.get(key) ?? 0;
       const u = units[key] ?? 0;
       const show = cap ? (u <= 0 ? 0 : Math.max(1, Math.round((idx.length * u) / cap))) : 0;
       idx.forEach((i, n) => mesh.setMatrixAt(i, n < show ? orig[i] : ZERO));
+      shown.push(...idx.slice(0, show));
     }
     mesh.count = orig.length;
     mesh.instanceMatrix.needsUpdate = true;
+    // whole lanes (front to back) so faded packs show from the aisle and from behind a cooler
+    const lanes = new Map<string, number[]>();
+    const lp = new THREE.Vector3();
+    for (const i of shown) {
+      lp.setFromMatrixPosition(orig[i]);
+      const k = `${lp.y.toFixed(2)}|${lp.z.toFixed(2)}`;
+      lanes.set(k, [...(lanes.get(k) ?? []), i]);
+    }
+    const nStale = share > 0 ? Math.max(1, Math.round(lanes.size * share)) : 0;
+    if (nStale || mesh.instanceColor) {
+      for (let i = 0; i < orig.length; i++) mesh.setColorAt(i, FRESH);
+      for (const lane of [...lanes.values()].slice(0, nStale)) for (const i of lane) mesh.setColorAt(i, STALE);
+      mesh.instanceColor!.needsUpdate = true;
+    }
   }
 }
 

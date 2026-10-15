@@ -3,10 +3,10 @@ import { css, el } from "./dom";
 
 /** Fixtures drawn on the plan for orientation (x, z, w, d in metres): shelves, coolers, till. */
 const FIXTURES: { x: number; z: number; w: number; d: number; kind: "shelf" | "cooler" | "till" }[] = [
-  { x: 5.7, z: 11.5, w: 1, d: 7, kind: "shelf" },
+  { x: 6.7, z: 11.5, w: 1, d: 7, kind: "shelf" },
   { x: 10.25, z: 11.5, w: 1, d: 7, kind: "shelf" },
   { x: 14.7, z: 11.5, w: 1, d: 7, kind: "shelf" },
-  { x: 2.05, z: 11, w: 1, d: 7, kind: "cooler" },
+  { x: 3.05, z: 11, w: 1, d: 7, kind: "cooler" },
   { x: 2, z: 21.55, w: 6, d: 0.9, kind: "till" },
 ];
 
@@ -22,6 +22,19 @@ export default class FullMap {
   private detail: HTMLDivElement;
   private go: HTMLButtonElement;
   private you: HTMLDivElement;
+  private markerLayer!: HTMLDivElement;
+
+  /** Labelled pins on the plan (e.g. shelves with low stock, where to fetch stock). */
+  setMarkers(list: { x: number; z: number; text: string }[]): void {
+    this.markerLayer.replaceChildren(
+      ...list.map((m) => {
+        const pin = el("div", "map-pin", m.text);
+        pin.style.left = `${(m.x / STORE.w) * 100}%`;
+        pin.style.top = `${(m.z / STORE.d) * 100}%`;
+        return pin;
+      })
+    );
+  }
   private selected: RoomId | null = null;
   private here: RoomId | null = null;
   private onGo: (id: RoomId) => void;
@@ -73,6 +86,8 @@ export default class FullMap {
     door.style.left = pct(10, STORE.w);
     door.style.width = pct(4, STORE.w);
     this.plan.appendChild(door);
+    this.markerLayer = el("div", "map-markers");
+    this.plan.appendChild(this.markerLayer);
     this.you = el("div", "map-you");
     this.you.append(el("span", "map-you-dot"), el("span", "map-you-label", "Anda"));
     this.plan.appendChild(this.you);
