@@ -166,8 +166,9 @@ canvas texture (`makeTileTexture`); signs are canvas text (`label`).
 ## Performance notes
 
 Lambert materials, no real-time shadows (blob shadows instead), instanced products (a few draw
-calls per shelf), pixel ratio capped at 2 and lowered automatically if the frame rate stays
-under 40 fps.
+calls per shelf), antialiasing on, pixel ratio capped at 2. If the frame rate stays under 30 fps
+the resolution steps down (never below 1.5x on high-density phones, so it stays sharp) and steps
+back up when it runs smoothly again; the first seconds of loading are ignored.
 
 ## Mobile WebView packaging
 

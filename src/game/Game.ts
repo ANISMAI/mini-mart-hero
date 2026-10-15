@@ -86,6 +86,9 @@ export default class Game {
   /** Seconds spent locked in task mode with no panel open (watchdog). */
   private orphanTask = 0;
   private pixelRatio: number;
+  private qualityClock = 0;
+  private slowChecks = 0;
+  private fastChecks = 0;
   private utils = new UtilityService();
   private utilVisuals: UtilityVisuals;
   private exterior: Exterior;
@@ -104,7 +107,7 @@ export default class Game {
   constructor(container: HTMLElement, uiRoot: HTMLElement) {
     // renderer: capped pixel ratio, no real-time shadows, simple lights (cheap on low-end Android)
     this.pixelRatio = Math.min(2, window.devicePixelRatio || 1);
-    this.renderer = new THREE.WebGLRenderer({ antialias: this.pixelRatio < 2, powerPreference: "high-performance" });
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
     this.renderer.setPixelRatio(this.pixelRatio);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     container.appendChild(this.renderer.domElement);
@@ -542,16 +545,32 @@ export default class Game {
   }
 
   /** Adaptive quality: drop the pixel ratio if the frame rate stays low. */
+  /**
+   * Adaptive sharpness: ignore the loading seconds, step the resolution down only when the
+   * frame rate stays poor, never below 1.5x on high-density screens (1x there looks blurry), and
+   * step back up once it runs smoothly again.
+   */
   private adaptQuality(dt: number): void {
+    this.qualityClock += dt;
+    if (this.qualityClock < 5) return;
     this.fpsTime += dt;
     this.fpsFrames++;
     if (this.fpsTime < 3) return;
     const fps = this.fpsFrames / this.fpsTime;
     this.fpsTime = 0;
     this.fpsFrames = 0;
-    if (fps < 40 && this.pixelRatio > 1) {
-      this.pixelRatio = Math.max(1, this.pixelRatio - 0.5);
-      this.renderer.setPixelRatio(this.pixelRatio);
+    const dpr = window.devicePixelRatio || 1;
+    const max = Math.min(2, dpr);
+    const min = dpr >= 2 ? 1.5 : 1;
+    this.slowChecks = fps < 30 ? this.slowChecks + 1 : 0;
+    this.fastChecks = fps > 52 ? this.fastChecks + 1 : 0;
+    let next = this.pixelRatio;
+    if (this.slowChecks >= 2) next = Math.max(min, this.pixelRatio - 0.25);
+    else if (this.fastChecks >= 3) next = Math.min(max, this.pixelRatio + 0.25);
+    if (next !== this.pixelRatio) {
+      this.pixelRatio = next;
+      this.renderer.setPixelRatio(next);
+      this.slowChecks = this.fastChecks = 0;
     }
   }
 }
