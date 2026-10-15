@@ -107,6 +107,14 @@ export default class Avatar {
   private eyes: THREE.Object3D[] = [];
   private t = 0;
   private blinkIn = 2 + Math.random() * 3;
+  private carton: THREE.Group;
+  private carrying = false;
+
+  /** Show / hide the carton held in both hands (arms stay forward while carrying). */
+  setCarrying(on: boolean): void {
+    this.carrying = on;
+    this.carton.visible = on;
+  }
   private blink = 0;
 
   constructor(look: AvatarLook) {
@@ -274,6 +282,30 @@ export default class Avatar {
     this.body.add(head);
 
     this.body.add(this.legL, this.legR, this.armL, this.armR);
+    // carton carried in front of the chest while restocking (hidden until there is stock to carry)
+    this.carton = new THREE.Group();
+    const cardboard = 0xc99a5f;
+    const box = part(new THREE.BoxGeometry(0.46, 0.32, 0.34), cardboard, 0.012);
+    box.position.y = 0.16;
+    this.carton.add(box);
+    for (const s of [-1, 1]) {
+      const flap = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.012, 0.16), toon(0xb8884f));
+      flap.position.set(0, 0.325, s * 0.12);
+      flap.rotation.x = s * 0.55;
+      this.carton.add(flap);
+    }
+    const tape = new THREE.Mesh(new THREE.BoxGeometry(0.47, 0.06, 0.345), toon(0xe9d3a6));
+    tape.position.y = 0.2;
+    this.carton.add(tape);
+    // a few goods peeking out of the top
+    [0xf9c833, 0xe8333f, 0x3b8ff0].forEach((c, i) => {
+      const g = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.12, 0.08), toon(c));
+      g.position.set(-0.12 + i * 0.12, 0.33, -0.02 + (i % 2) * 0.05);
+      this.carton.add(g);
+    });
+    this.carton.position.set(0, 0.56, 0.3);
+    this.carton.visible = false;
+    this.body.add(this.carton);
     this.root.add(this.body, blob(0.32));
   }
 
@@ -284,8 +316,18 @@ export default class Avatar {
     const swing = Math.sin(this.t) * 0.6 * speed;
     this.legL.rotation.x = swing;
     this.legR.rotation.x = -swing;
-    this.armL.rotation.x = -swing * 0.8;
-    this.armR.rotation.x = swing * 0.8;
+    if (this.carrying) {
+      // both hands under the carton, a little bob while walking
+      const bob = walking ? Math.sin(this.t * 2) * 0.04 : 0;
+      this.armL.rotation.x = this.armR.rotation.x = -1.15 + bob;
+      this.armL.rotation.z = 0.25;
+      this.armR.rotation.z = -0.25;
+    } else {
+      this.armL.rotation.x = -swing * 0.8;
+      this.armR.rotation.x = swing * 0.8;
+      this.armL.rotation.z = -0.08;
+      this.armR.rotation.z = 0.08;
+    }
     this.body.position.y = walking ? Math.abs(Math.sin(this.t)) * 0.05 * speed : Math.sin(this.t) * 0.008;
     this.body.rotation.z = walking ? Math.sin(this.t) * 0.04 * speed : 0;
     this.head.rotation.z = walking ? -Math.sin(this.t) * 0.03 * speed : Math.sin(this.t * 0.5) * 0.02;

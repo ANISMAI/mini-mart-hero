@@ -209,6 +209,10 @@ export interface ProductSpot {
   face: 1 | -1;
 }
 
+/** Called whenever a product picture replaces its placeholder (stock visuals re-apply). */
+export let onPictureReady: (() => void) | null = null;
+export const setPictureReady = (fn: () => void) => (onPictureReady = fn);
+
 export function fillShelf(parent: THREE.Object3D, items: CatalogItem[], runs: ShelfRun[]): ProductSpot[] {
   const spots: ProductSpot[] = [];
   if (!items.length || !runs.length) return spots;
@@ -261,6 +265,19 @@ export function fillShelf(parent: THREE.Object3D, items: CatalogItem[], runs: Sh
         }
         u += w;
       }
+      // display order = fill order when stock is low: lowest board first, front row before the
+      // rows behind it, then along the board (a restocked unit appears where you'd expect)
+      const key = (m: THREE.Matrix4) => new THREE.Vector3().setFromMatrixPosition(m);
+      out.sort((ma, mb) => {
+        const a = key(ma);
+        const b = key(mb);
+        const fa = a.x >= 0 ? 1 : -1;
+        const fb = b.x >= 0 ? 1 : -1;
+        if (fa !== fb) return fb - fa;
+        if (Math.abs(a.y - b.y) > 1e-3) return a.y - b.y;
+        if (Math.abs(a.x - b.x) > 1e-3) return fa * (b.x - a.x); // front (outer) row first
+        return a.z - b.z;
+      });
       return out;
     };
 
@@ -276,6 +293,8 @@ export function fillShelf(parent: THREE.Object3D, items: CatalogItem[], runs: Sh
       const inst = new THREE.InstancedMesh(part.geo, materialFor(part.role, item), matrices.length);
       matrices.forEach((m, k) => inst.setMatrixAt(k, m));
       inst.userData.sku = item.id;
+      inst.userData.full = matrices.length;
+      inst.userData.placeholder = true;
       parent.add(inst);
       placeholders.push(inst);
     }
@@ -296,7 +315,9 @@ export function fillShelf(parent: THREE.Object3D, items: CatalogItem[], runs: Sh
       const solid = new THREE.InstancedMesh(cutoutSolid(pic, w, h, depth), pictureMaterials(item, pic), placed.length);
       placed.forEach((m, k) => solid.setMatrixAt(k, m));
       solid.userData.sku = item.id;
+      solid.userData.full = placed.length;
       parent.add(solid);
+      onPictureReady?.();
       for (const p of placeholders) p.visible = false;
     });
   });

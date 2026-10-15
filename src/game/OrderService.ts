@@ -105,7 +105,7 @@ export default class OrderService {
    * A customer walks in with a shopping list drawn only from `available` (unlocked and actually
    * on the shelves). Only when idle.
    */
-  spawn(available: CatalogItem[], looks: number): boolean {
+  spawn(available: CatalogItem[], looks: number, stockOf: (id: string) => number = () => Infinity): boolean {
     if (this.state !== "idle" || !available.length) return false;
     const kinds: CustomerTemplate[] = ["express", "ordinary", "ordinary", "family"];
     const customerId = kinds[Math.floor(Math.random() * kinds.length)];
@@ -114,7 +114,7 @@ export default class OrderService {
     const picks = shuffle(available).slice(0, count);
     const lines = picks.map((p) => ({ productId: p.id, quantity: 1 }));
     // now and then two of something cheap
-    if (lines.length <= 2 && picks[0].priceCents <= 500 && Math.random() < 0.5) lines[0].quantity = 2;
+    if (lines.length <= 2 && picks[0].priceCents <= 500 && Math.random() < 0.5 && stockOf(picks[0].id) >= 2) lines[0].quantity = 2;
     this.order = {
       id: `ord-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
       customerId,

@@ -10,6 +10,7 @@ import { buildSurau } from "./Surau";
 import { buildStaffRoom } from "./StaffRoom";
 import { arcade, buildDecor, diningTable, snackCounter, wallPoster } from "./Decor";
 import { AC_CONTROLLER, CABINET, ZONES, type ZoneId } from "../data/utilities";
+import { MANAGED, type StockSource } from "../data/inventory";
 
 // Builds the whole store: floors, walls with doorways, shelves with products, counter, back
 // rooms, restroom and surau. Everything is simple rounded low-poly geometry and flat colours,
@@ -17,7 +18,8 @@ import { AC_CONTROLLER, CABINET, ZONES, type ZoneId } from "../data/utilities";
 // collisions or the room registry (see README).
 
 /** Phase 1.5 adds: light switch (instant), AC controller, manager light panel, electrical cabinet. */
-export type TaskKind = "cashier" | "organizer" | "info" | "switch" | "aircon" | "lights" | "electrical";
+/** Phase 3 adds: back-stock room (take into basket) and shelf restock. */
+export type TaskKind = "cashier" | "organizer" | "info" | "switch" | "aircon" | "lights" | "electrical" | "stock" | "restock";
 
 export interface Interactable {
   id: string;
@@ -34,6 +36,8 @@ export interface Interactable {
   text?: string;
   /** Light switch: the zone it controls. */
   zone?: ZoneId;
+  /** Back-stock room for "stock" interactions. */
+  source?: StockSource;
   room: RoomId;
 }
 
@@ -270,12 +274,12 @@ export function buildStore(level = 1): BuiltStore {
   const organizerAt = (section: Category, x: number, z: number, room: RoomId) =>
     interactables.push({
       id: `shelf-${section}`,
-      label: `Semak ${SECTIONS[section].label.toLowerCase()}`,
+      label: MANAGED.includes(section) ? `Isi stok · ${SECTIONS[section].label}` : `Semak ${SECTIONS[section].label.toLowerCase()}`,
       icon: SECTIONS[section].icon,
       x,
       z,
       radius: 1.2,
-      kind: "organizer",
+      kind: MANAGED.includes(section) ? "restock" : "organizer",
       shelf: section,
       room,
     });
@@ -287,7 +291,7 @@ export function buildStore(level = 1): BuiltStore {
   }
   // drinks & dairy coolers against the left wall, glass doors facing the aisle
   for (const spot of buildCoolers(group, doors, 2.05, 11, 3, unlockedIn("fridge", level))) productSpots.set(spot.sku, spot);
-  organizerAt("fridge", 3.9, 17.4, "drinks");
+  // (the coolers are refilled from behind, in the chiller room: see below)
   // chiller room: drink crates along the wall, top-up point behind the coolers
   for (const [z, n] of [[11.4, 3], [12.6, 2], [16.4, 3], [17.6, 2]] as const) {
     for (let i = 0; i < n; i++) add(at(rbox(0.5, 0.3, 0.45, i % 2 ? 0x3b8ff0 : 0xe8333f, 0.04), 0.4, i * 0.31, z));
@@ -295,12 +299,26 @@ export function buildStore(level = 1): BuiltStore {
   }
   interactables.push({
     id: "chiller-topup",
-    label: "Top up minuman",
+    label: "Ambil stok sejuk",
     icon: "❄️",
-    x: 1.3,
-    z: 14.5,
-    radius: 1.6,
-    kind: "organizer",
+    x: 1.0,
+    z: 12.0,
+    radius: 1.1,
+    kind: "stock",
+    source: "chiller",
+    shelf: "fridge",
+    room: "chiller",
+  });
+  // refill the coolers from the back (stock slides forward to the customer side)
+  interactables.push({
+    id: "fridge-restock-back",
+    label: "Isi peti sejuk (belakang)",
+    icon: "🧊",
+    x: 1.4,
+    z: 16.2,
+    radius: 1.2,
+    kind: "restock",
+    source: "chiller",
     shelf: "fridge",
     room: "chiller",
   });
@@ -350,12 +368,13 @@ export function buildStore(level = 1): BuiltStore {
   add(at(label("📦 STORAGE", { width: 1.7, height: 0.38, bg: "#e5a417" }), 4.5, 2.4, 7.2));
   interactables.push({
     id: "storage",
-    label: "Check stock",
+    label: "Ambil stok kering",
     icon: "📦",
     x: 4.5,
     z: 2.3,
     radius: 1.4,
-    kind: "organizer",
+    kind: "stock",
+    source: "storage",
     shelf: "storage",
     room: "storage",
   });

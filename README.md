@@ -155,6 +155,24 @@ basket), `src/data/strings.ts` (BM/EN dialogue table), `packClass` in `src/data/
 Product spots come from the shelf filler (`fillShelf` returns them). `?dev` brings the first
 customer in after 1 s.
 
+## Phase 3 (stage 1): stock & restocking
+
+Real stock for **all five sections, 44 SKUs**: coolers (refilled from the back, in the Bilik
+Sejuk), Barang Dapur, Penjagaan Diri, Kelengkapan Rumah and Snek (dry goods from the Stor). Data: `src/data/inventory.ts` (fixed slot per SKU
+such as `fridge.air-mineral-500ml`, capacity 12, bulky items 8; low stock at 3 or fewer; seed
+24 units back-stock each). Logic: `src/game/Inventory.ts`. Screens: `src/ui/StockUI.ts`.
+
+- **Take stock:** chilled goods in the **Bilik Sejuk** (behind the coolers), dry goods in the
+  **Stor**. Interact → +/− per product into the restock basket (max 24 units), or put back.
+- **Restock:** Interact at the cooler / green shelf → fixed labelled slots with count/capacity.
+  Drag a basket item onto its slot, or tap item then slot. Zoom +/− (and pinch), pan when zoomed.
+  A wrong slot, full slot, locked product or empty basket gives the unit back with a short note.
+  **Confirm** applies all moves at once; **Cancel** changes nothing. No timers or scoring.
+- **Sales:** a completed sale subtracts shelf stock once per order; customers only pick products
+  that are on the shelf. A toast warns when a slot drops to low stock and says where to restock.
+- **3D:** each product shows fewer facings as its slot empties (instanced count, no new meshes).
+- Saved under `mini-market-hero-inventory-v2` (missing/broken values fall back to the seed).
+
 ## Replacing models and textures
 
 Everything is built from simple primitives in `world/StoreBuilder.ts` (one function per piece:

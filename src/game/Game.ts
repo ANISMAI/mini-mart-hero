@@ -18,6 +18,12 @@ import OrderService from "./OrderService";
 import Checkout from "../ui/Checkout";
 import CustomerNPC from "../world/CustomerNPC";
 import { CATALOG, getItem } from "../data/catalog";
+import InventoryService from "./Inventory";
+import StockUI from "../ui/StockUI";
+import RestockMode from "./RestockMode";
+import { SOURCE_LABEL, SOURCE_OF, slotOf } from "../data/inventory";
+import { setPictureReady } from "../world/ProductModels";
+import { applyBayVisuals, indexBays, layoutFor, type ProductBays } from "../world/ShelfBays";
 import { t } from "../data/strings";
 
 /**
@@ -97,6 +103,12 @@ export default class Game {
   private checkout!: Checkout;
   private npc: CustomerNPC;
   private nextCustomerIn = 4;
+  // Phase 3: real stock for the managed sections
+  private inventory = new InventoryService();
+  private stockUI!: StockUI;
+  private restock: RestockMode;
+  /** Shelf bays (part of a product's block per board) of every managed product. */
+  private bays = new Map<string, ProductBays>();
   /** Scene lights and their full intensities (dimmed while the player's zone is dark). */
   private lights: { light: THREE.Light; full: number }[] = [];
   private dim = 1;
@@ -130,6 +142,12 @@ export default class Game {
     const lv = Number(new URLSearchParams(location.search).get("lv"));
     this.careerLevel = loadSave()?.level ?? 1;
     this.level = Number.isInteger(lv) && lv >= 1 && lv <= 99 ? lv : this.careerLevel;
+    this.inventory.level = this.level;
+    // product pictures replace placeholders as they load: re-index the shelf bays, redraw stock
+    setPictureReady(() => {
+      this.bays = indexBays(this.store.group);
+      if (!this.restock?.active) this.applyStockVisuals();
+    });
     this.store = buildStore(this.level);
     this.scene.add(this.store.group);
     this.utilVisuals = new UtilityVisuals(this.store.group, this.utils);
@@ -144,6 +162,10 @@ export default class Game {
     this.player = new PlayerController(this.store.collisions);
     this.scene.add(this.player.avatar.root);
     this.cam = new ThirdPersonCamera(1, this.store.occluders);
+    this.bays = indexBays(this.store.group);
+    this.restock = new RestockMode(this.cam.camera, this.scene, this.inventory, this.store.productSpots, uiRoot);
+    this.restock.getBays = () => this.bays;
+    this.restock.onPreview = (extra) => this.applyStockVisuals(extra);
 
     this.customers = [
       new AmbientCustomer(CUSTOMER_LOOKS[0], this.store.collisions, [
@@ -180,6 +202,14 @@ export default class Game {
       this.updateAlert();
     });
     this.updateAlert();
+    // stock: screens, shelf visuals follow the inventory
+    this.stockUI = new StockUI(this.overlays, this.inventory);
+    this.inventory.subscribe(() => {
+      if (!this.restock.active) this.applyStockVisuals();
+      this.player.avatar.setCarrying(this.inventory.basketCount() > 0); // carry the carton while it holds stock
+    });
+    this.applyStockVisuals();
+    this.player.avatar.setCarrying(this.inventory.basketCount() > 0);
     // orders: till screens, HUD objective and the customer's bubble follow the service
     this.checkout = new Checkout(this.overlays, this.orders);
     this.checkout.beep = () => this.beep();
@@ -339,8 +369,35 @@ export default class Game {
       this.orders.startCheckout();
       this.checkout.till(() => {
         done();
-        if (this.orders.state === "complete") this.npc.leave();
+        const o = this.orders.order;
+        if (o && o.state === "complete") {
+          // the confirmed sale leaves the shelves (once per order), then the customer goes
+          const low = this.inventory.sell(o.id, o.lines);
+          if (low.length) {
+            const s = low[0];
+            const item = getItem(s.productId)!;
+            const where = SOURCE_LABEL[SOURCE_OF[s.category]];
+            this.hud.showToast(`📦 Stok ${item.name} rendah (${this.inventory.shelf[s.slotId]}/${s.capacity}). Ambil stok di ${where.icon} ${where.name}.`, 4500);
+          }
+          this.npc.leave();
+        }
       });
+    }
+    else if (it.kind === "stock") this.stockUI.backStock(it.source!, done);
+    else if (it.kind === "restock") {
+      // the restock mode has its own full-screen UI: hide the normal HUD meanwhile
+      // (the avatar steps out of the shot too, so it never blocks the shelf)
+      this.hud.root.style.visibility = "hidden";
+      this.player.avatar.root.visible = false;
+      this.restock.open(
+        it.shelf as Exclude<typeof it.shelf, "storage" | undefined>,
+        () => {
+          this.hud.root.style.visibility = "";
+          this.player.avatar.root.visible = true;
+          done();
+        },
+        it.source === "chiller" // coolers: refilled from the back, in the chiller room
+      );
     }
     else if (it.kind === "organizer") this.overlays.organizer(it.shelf!, this.level, done);
     else if (it.kind === "aircon") this.overlays.aircon(this.utils, done);
@@ -369,6 +426,17 @@ export default class Game {
       this.npc.setBubble(s === "shopping" ? "🛒" : s === "waiting" ? "🧾" : tillStates.includes(s) ? "💵" : null);
     if (tillStates.includes(s)) this.npc.emptyBasket(); // goods are on the counter now
     this.hud.setCoins(this.orders.stats.coins);
+  }
+
+  /** Shelf facings follow real stock: an emptier slot shows fewer products (no new meshes). */
+  /** Shelf facings follow real stock, per board: `layouts` (units per bay) overrides for previews. */
+  private applyStockVisuals(layouts: Record<string, Record<string, number>> = {}): void {
+    for (const [sku, entry] of this.bays) {
+      const slot = slotOf(sku);
+      if (!slot) continue;
+      const lay = layouts[slot.slotId] ?? layoutFor(entry.bays, this.inventory.shelf[slot.slotId] ?? 0, this.inventory.layout[slot.slotId]);
+      applyBayVisuals(entry, lay);
+    }
   }
 
   /** Scanner / till beep. */
@@ -434,8 +502,9 @@ export default class Game {
       this.nextCustomerIn -= dt;
       if (this.nextCustomerIn <= 0) {
         this.nextCustomerIn = 8;
-        const available = CATALOG.filter((p) => p.unlockLevel <= this.level && this.store.productSpots.has(p.id));
-        if (this.orders.spawn(available, 3)) {
+        // customers only pick what is actually on the shelf
+        const available = CATALOG.filter((p) => p.unlockLevel <= this.level && this.store.productSpots.has(p.id) && this.inventory.sellable(p.id) >= 1);
+        if (this.orders.spawn(available, 3, (id) => this.inventory.sellable(id))) {
           const stops = this.orders.order!.lines.map((l) => ({
             spot: this.store.productSpots.get(l.productId)!,
             onPick: () => {
@@ -449,7 +518,9 @@ export default class Game {
       }
     }
     this.exterior.tick(dt);
-    this.cam.update(this.player.position, dt);
+    // restocking drives the camera up to the shelf; otherwise the follow camera
+    if (this.restock.active) this.restock.update(dt);
+    else this.cam.update(this.player.position, dt);
 
     const p = this.player.position;
     // walls hiding the avatar fade to see-through, then back when clear: any wall piece near the
@@ -528,7 +599,7 @@ export default class Game {
     this.renderer.render(this.scene, this.cam.camera);
 
     // watchdog: locked controls with no panel or map open means a panel failed; unlock
-    if (this.taskMode && !this.overlays.isOpen && !this.fullMap.isOpen) {
+    if (this.taskMode && !this.overlays.isOpen && !this.fullMap.isOpen && !this.restock.active) {
       this.orphanTask += dt;
       if (this.orphanTask > 0.4) {
         this.orphanTask = 0;
