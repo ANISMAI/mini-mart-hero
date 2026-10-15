@@ -3,6 +3,7 @@ import type Overlays from "./Overlays";
 import { dateLabel } from "../data/inventory";
 import StoreDay, { OPEN, TASKS, TASK_REWARD, type TaskId } from "../game/StoreDay";
 import type UtilityService from "../game/Utilities";
+import { MISSION_ICON, missionLabel, type Mission } from "../game/Missions";
 import { ZONES } from "../data/utilities";
 import { rmSen } from "../game/OrderService";
 
@@ -20,7 +21,7 @@ export default class MorningUI {
   }
 
   /** The checklist. `onGo(task)` walks the player there; `dev` adds "open now". */
-  checklist(onGo: (task: TaskId) => void, onClose: () => void, dev = false, onDevExpire?: () => number): void {
+  checklist(onGo: (task: TaskId) => void, onClose: () => void, dev = false, onDevExpire?: () => number, missions: Mission[] = []): void {
     const d = this.day;
     const p = this.overlays.panel(`Senarai Semak Pagi · ${dateLabel(d.day)}`, "🌅", onClose, "morning");
     const render = () => {
@@ -49,7 +50,25 @@ export default class MorningUI {
         list.appendChild(row);
       }
       const count = TASKS.filter((t) => d.done[t.id]).length;
-      p.body.replaceChildren(status, list, el("p", "muted", count === TASKS.length ? "🎉 Semua tugas pagi siap. Kedai sedia dibuka!" : `${count}/${TASKS.length} tugas siap. Tugas ni pilihan, tapi kedai lebih kemas!`));
+      const note = el("p", "muted", count === TASKS.length ? "🎉 Semua tugas pagi siap. Kedai sedia dibuka!" : `${count}/${TASKS.length} tugas siap. Tugas ni pilihan, tapi kedai lebih kemas!`);
+      // today's optional missions, with progress bars
+      const ms = el("div", "mb-missions");
+      if (missions.length) {
+        ms.appendChild(el("h3", "mb-sub", "🎯 Misi Hari Ini"));
+        for (const m of missions) {
+          const row = el("div", `ms-row ${m.done ? "done" : ""}`);
+          const info = el("div", "ms-info");
+          info.append(el("strong", "", `${m.done ? "✅" : MISSION_ICON[m.kind]} ${missionLabel(m)}`));
+          const bar = el("div", "ms-bar");
+          const fill = el("i");
+          fill.style.width = `${Math.round((m.progress / m.target) * 100)}%`;
+          bar.appendChild(fill);
+          info.appendChild(bar);
+          row.append(info, el("span", "ms-reward", m.done ? "Siap" : m.kind === "noComplaint" ? `+${m.reward} 🪙 bila tutup` : `${m.progress}/${m.target} · +${m.reward} 🪙`));
+          ms.appendChild(row);
+        }
+      }
+      p.body.replaceChildren(status, list, note, ms);
     };
     render();
     const btns: HTMLElement[] = [];

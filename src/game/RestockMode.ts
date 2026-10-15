@@ -94,6 +94,8 @@ export default class RestockMode {
   private uiRoot: HTMLElement;
   /** Shelf preview with pending units: units per bay per slot (the game redraws facings). */
   onPreview: (layouts: Record<string, Record<string, number>>) => void = () => {};
+  /** Units put on the shelves when a restock is confirmed (daily missions). */
+  onApplied: (units: number) => void = () => {};
   /** Developer tools (?dev): a button that makes some packs on this shelf expired. */
   dev = false;
   /** Bays of every managed product (indexed by the game from the built shelves). */
@@ -187,6 +189,7 @@ export default class RestockMode {
       this.say("Stok berubah, sila cuba lagi.", true);
       return;
     }
+    if (apply && this.pending.length) this.onApplied(this.pending.reduce((a, m) => a + m.units, 0));
     this.active = false;
     this.pending = [];
     this.onPreview({});

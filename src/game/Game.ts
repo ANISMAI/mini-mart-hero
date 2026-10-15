@@ -28,6 +28,7 @@ import MorningUI from "../ui/MorningUI";
 import Spills from "../world/Spills";
 import DeliveryService, { ARRIVE } from "./Delivery";
 import DeliveryUI from "../ui/DeliveryUI";
+import MissionService, { missionLabel, type Mission } from "./Missions";
 import { PALLET_AT, buildPallet } from "../world/DeliveryPallet";
 import { applyBayVisuals, indexBays, layoutFor, type ProductBays } from "../world/ShelfBays";
 import { t } from "../data/strings";
@@ -123,6 +124,8 @@ export default class Game {
   private delivery = new DeliveryService();
   private deliveryUI!: DeliveryUI;
   private pallet!: THREE.Group;
+  // three optional missions a day
+  private missions = new MissionService();
 
   /** Scene lights and their full intensities (dimmed while the player's zone is dark). */
   private lights: { light: THREE.Light; full: number }[] = [];
@@ -181,6 +184,7 @@ export default class Game {
     this.restock = new RestockMode(this.cam.camera, this.scene, this.inventory, this.store.productSpots, uiRoot);
     this.restock.getBays = () => this.bays;
     this.restock.dev = this.dev;
+    this.restock.onApplied = (units) => this.payMissions(this.missions.bump("restock", units));
     this.spills = new Spills(this.store.group);
     this.spills.show(this.storeDay.spills);
     this.pallet = buildPallet(this.store.group);
@@ -232,6 +236,7 @@ export default class Game {
     if (this.inventory.day > this.storeDay.day) this.storeDay.day = this.inventory.day; // older saves
     this.inventory.setDay(this.storeDay.day);
     this.ensureDelivery();
+    this.missions.ensure(this.storeDay.day);
     this.storeDay.subscribe(() => {
       this.spills.show(this.storeDay.spills);
       this.pallet.visible = this.deliveryWaiting();
@@ -239,11 +244,15 @@ export default class Game {
     });
     this.storeDay.onEvent = (e) => {
       if (e === "open") this.hud.showToast("🏪 Kedai dibuka! Pelanggan mula datang.", 3500);
-      if (e === "close") this.hud.showToast("🌙 Kedai tutup. Jumpa esok!", 3000);
+      if (e === "close") {
+        this.hud.showToast("🌙 Kedai tutup. Jumpa esok!", 3000);
+        this.payMissions(this.missions.endOfDay());
+      }
       if (e === "delivery" && this.deliveryWaiting()) this.hud.showToast("🚚 Lori penghantaran dah sampai! Kotak di Stor, tepi pintu.", 4000);
       if (e === "newDay") {
         this.inventory.setDay(this.storeDay.day);
         this.ensureDelivery();
+        this.missions.ensure(this.storeDay.day);
         window.setTimeout(() => this.openMorning(), 600);
       }
     };
@@ -425,6 +434,11 @@ export default class Game {
         if (o && o.state === "complete") {
           // the confirmed sale leaves the shelves (once per order), then the customer goes
           const { low, expired } = this.inventory.sell(o.id, o.lines);
+          this.payMissions([
+            ...this.missions.bump("serve"),
+            ...(o.earnedScore >= 90 ? this.missions.bump("stars") : []),
+            ...this.missions.bump("coins", this.orders.coinsFor(o)),
+          ]);
 
           if (low.length) {
             const s = low[0];
@@ -562,10 +576,23 @@ export default class Game {
   private openMorning(): void {
     if (this.taskMode) return;
     this.enterTaskMode();
-    this.morningUI.checklist((task) => this.goToTask(task), () => this.exitTaskMode(), this.dev, () =>
-      // dev: the front packs of every displayed perishable go out of date
-      SLOTS.filter((s) => isPerishable(s.productId) && this.inventory.unlocked(s.productId) && this.store.productSpots.has(s.productId)).reduce((a, s) => a + this.inventory.devExpire(s.slotId, 2), 0)
+    this.morningUI.checklist(
+      (task) => this.goToTask(task),
+      () => this.exitTaskMode(),
+      this.dev,
+      () =>
+        // dev: the front packs of every displayed perishable go out of date
+        SLOTS.filter((s) => isPerishable(s.productId) && this.inventory.unlocked(s.productId) && this.store.productSpots.has(s.productId)).reduce((a, s) => a + this.inventory.devExpire(s.slotId, 2), 0),
+      this.missions.list
     );
+  }
+
+  /** Pay finished missions' coins, with a toast each. */
+  private payMissions(done: Mission[]): void {
+    done.forEach((m, i) => {
+      this.orders.addCoins(m.reward);
+      window.setTimeout(() => this.hud.showToast(`🎯 Misi siap: ${missionLabel(m)} · +${m.reward} 🪙`, 3500), 1200 + i * 3600);
+    });
   }
 
   private goToTask(task: TaskId): void {
@@ -657,6 +684,7 @@ export default class Game {
     window.setTimeout(() => {
       this.npc.setBubble("😠");
       const lost = this.orders.penalty(units * 5);
+      this.missions.complaint();
       this.hud.showToast(`😠 Pelanggan komplen: "${name} ni dah luput!" Duit dipulangkan${lost ? ` · −${lost} 🪙` : ""}. Semak rak setiap pagi ya.`, 5500);
     }, 1500);
   }
